@@ -26,7 +26,7 @@ export default function ContentManagement() {
       let url = "/api/content";
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
-      if (statusFilter) params.append("status", statusFilter);
+      if (statusFilter && statusFilter !== "all") params.append("status", statusFilter);
       if (params.toString()) url += `?${params.toString()}`;
       
       const response = await fetch(url, { credentials: "include" });
@@ -145,7 +145,7 @@ export default function ContentManagement() {
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="scheduled">Scheduled</SelectItem>
@@ -160,7 +160,7 @@ export default function ContentManagement() {
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="image">Image</SelectItem>
                   <SelectItem value="video">Video</SelectItem>
                   <SelectItem value="slideshow">Slideshow</SelectItem>

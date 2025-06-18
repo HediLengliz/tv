@@ -26,7 +26,7 @@ export default function TvManagement() {
       let url = "/api/tvs";
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
-      if (statusFilter) params.append("status", statusFilter);
+      if (statusFilter && statusFilter !== "all") params.append("status", statusFilter);
       if (params.toString()) url += `?${params.toString()}`;
       
       const response = await fetch(url, { credentials: "include" });
@@ -139,7 +139,7 @@ export default function TvManagement() {
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="online">Online</SelectItem>
                   <SelectItem value="offline">Offline</SelectItem>
                   <SelectItem value="broadcasting">Broadcasting</SelectItem>
