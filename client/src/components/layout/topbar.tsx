@@ -1,4 +1,4 @@
-import { Bell, User } from "lucide-react";
+import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { 
   DropdownMenu,
@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 interface TopBarProps {
   title: string;
@@ -26,10 +27,7 @@ export function TopBar({ title, subtitle }: TopBarProps) {
         </div>
         <div className="flex items-center space-x-4">
           {/* Notifications */}
-          <Button variant="ghost" size="sm" className="relative">
-            <Bell className="h-4 w-4" />
-            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-background"></span>
-          </Button>
+          <NotificationBell />
 
           {/* Profile Dropdown */}
           <DropdownMenu>
