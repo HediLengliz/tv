@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tv, PlayCircle, Radio, Users } from "lucide-react";
 import { getTimeAgo } from "@/lib/utils";
+import { BroadcastingActivityChart } from "@/components/charts/broadcasting-activity-chart";
 
 export default function Dashboard() {
   const { data: stats } = useQuery({
@@ -86,33 +87,9 @@ export default function Dashboard() {
       {/* Charts and Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Broadcasting Activity Chart */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Broadcasting Activity</CardTitle>
-              <Select defaultValue="7days">
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7days">Last 7 days</SelectItem>
-                  <SelectItem value="30days">Last 30 days</SelectItem>
-                  <SelectItem value="3months">Last 3 months</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {/* Mock Chart Area */}
-            <div className="h-64 bg-muted rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <Radio className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">Broadcasting activity chart would appear here</p>
-                <p className="text-sm text-muted-foreground mt-2">Chart implementation with Chart.js or Recharts</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-2">
+          <BroadcastingActivityChart />
+        </div>
 
         {/* Recent Activity */}
         <Card>

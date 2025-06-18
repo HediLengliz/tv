@@ -45,6 +45,15 @@ export const broadcasts = pgTable("broadcasts", {
   stoppedAt: timestamp("stopped_at"),
 });
 
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull().default("info"), // info, success, warning, error
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -68,6 +77,11 @@ export const insertBroadcastSchema = createInsertSchema(broadcasts).omit({
   stoppedAt: true,
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -83,4 +97,6 @@ export type Content = typeof content.$inferSelect;
 export type InsertContent = z.infer<typeof insertContentSchema>;
 export type Broadcast = typeof broadcasts.$inferSelect;
 export type InsertBroadcast = z.infer<typeof insertBroadcastSchema>;
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type LoginData = z.infer<typeof loginSchema>;
