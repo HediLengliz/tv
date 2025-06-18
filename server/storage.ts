@@ -1,4 +1,4 @@
-import { users, tvs, content, broadcasts, type User, type InsertUser, type TV, type InsertTV, type Content, type InsertContent, type Broadcast, type InsertBroadcast } from "@shared/schema";
+import { users, tvs, content, broadcasts, notifications, type User, type InsertUser, type TV, type InsertTV, type Content, type InsertContent, type Broadcast, type InsertBroadcast, type Notification, type InsertNotification } from "@shared/schema";
 import bcrypt from "bcrypt";
 
 export interface IStorage {
