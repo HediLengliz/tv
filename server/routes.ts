@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage.js";
 import { insertUserSchema, insertTvSchema, insertContentSchema, loginSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -15,7 +15,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      await storage.updateLastLogin(user.id);
+      await storage.updateLastLogin(user.id!);
       
       // In a real app, you'd create a JWT token here
       const { password: _, ...userWithoutPassword } = user;
@@ -77,7 +77,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/users/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const userData = insertUserSchema.partial().parse(req.body);
       
       const user = await storage.updateUser(id, userData);
@@ -97,7 +97,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/users/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const deleted = await storage.deleteUser(id);
       
       if (!deleted) {
@@ -156,7 +156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/tvs/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const tvData = insertTvSchema.partial().parse(req.body);
       
       const tv = await storage.updateTV(id, tvData);
@@ -175,7 +175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/tvs/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const deleted = await storage.deleteTV(id);
       
       if (!deleted) {
@@ -223,6 +223,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const contentData = insertContentSchema.parse(req.body);
       const content = await storage.createContent(contentData);
+      
+      // Update broadcasting activity for content creation
+      const today = new Date().toISOString().split('T')[0];
+      await storage.updateBroadcastingActivity(today, { content: 1 });
+      
       res.status(201).json(content);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -234,7 +239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/content/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const contentData = insertContentSchema.partial().parse(req.body);
       
       const content = await storage.updateContent(id, contentData);
@@ -253,7 +258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/content/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const deleted = await storage.deleteContent(id);
       
       if (!deleted) {
@@ -286,6 +291,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json({ broadcasts, message: "Broadcasting started successfully" });
     } catch (error) {
+      console.error('Broadcasting error:', error);
+      
+      // Update broadcasting activity for errors
+      const today = new Date().toISOString().split('T')[0];
+      await storage.updateBroadcastingActivity(today, { errors: 1 });
+      
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -303,6 +314,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: "Broadcasting stopped successfully" });
     } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Broadcasting Activity route
+  app.get("/api/analytics/broadcasting-activity", async (req, res) => {
+    try {
+      const timeRange = (req.query.timeRange as string) || '7d';
+      const activityData = await storage.getBroadcastingActivity(timeRange);
+      res.json(activityData);
+    } catch (error) {
+      console.error('Broadcasting activity error:', error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

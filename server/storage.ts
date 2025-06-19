@@ -1,43 +1,68 @@
-import { users, tvs, content, broadcasts, notifications, type User, type InsertUser, type TV, type InsertTV, type Content, type InsertContent, type Broadcast, type InsertBroadcast, type Notification, type InsertNotification } from "@shared/schema";
+import { 
+  UserModel, 
+  TVModel, 
+  ContentModel, 
+  BroadcastModel, 
+  NotificationModel,
+  BroadcastingActivityModel,
+  connectToDatabase 
+} from './database.js';
+import { 
+  type User, 
+  type InsertUser, 
+  type TV, 
+  type InsertTV, 
+  type Content, 
+  type InsertContent, 
+  type Broadcast, 
+  type InsertBroadcast, 
+  type Notification, 
+  type InsertNotification,
+  type BroadcastingActivity
+} from "@shared/schema";
 import bcrypt from "bcryptjs";
 
 export interface IStorage {
   // User methods
-  getUser(id: number): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
+  getUser(id: string): Promise<User | null>;
+  getUserByEmail(email: string): Promise<User | null>;
   createUser(user: InsertUser): Promise<User>;
-  updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
-  deleteUser(id: number): Promise<boolean>;
+  updateUser(id: string, user: Partial<InsertUser>): Promise<User | null>;
+  deleteUser(id: string): Promise<boolean>;
   getAllUsers(): Promise<User[]>;
   validateUser(email: string, password: string): Promise<User | null>;
-  updateLastLogin(userId: number): Promise<void>;
+  updateLastLogin(userId: string): Promise<void>;
 
   // TV methods
-  getTV(id: number): Promise<TV | undefined>;
+  getTV(id: string): Promise<TV | null>;
   getAllTVs(): Promise<TV[]>;
   createTV(tv: InsertTV): Promise<TV>;
-  updateTV(id: number, tv: Partial<InsertTV>): Promise<TV | undefined>;
-  deleteTV(id: number): Promise<boolean>;
+  updateTV(id: string, tv: Partial<InsertTV>): Promise<TV | null>;
+  deleteTV(id: string): Promise<boolean>;
   searchTVs(query: string): Promise<TV[]>;
   getTVsByStatus(status: string): Promise<TV[]>;
 
   // Content methods
-  getContent(id: number): Promise<Content | undefined>;
+  getContent(id: string): Promise<Content | null>;
   getAllContent(): Promise<Content[]>;
   createContent(content: InsertContent): Promise<Content>;
-  updateContent(id: number, content: Partial<InsertContent>): Promise<Content | undefined>;
-  deleteContent(id: number): Promise<boolean>;
+  updateContent(id: string, content: Partial<InsertContent>): Promise<Content | null>;
+  deleteContent(id: string): Promise<boolean>;
   searchContent(query: string): Promise<Content[]>;
   getContentByStatus(status: string): Promise<Content[]>;
 
   // Broadcast methods
-  getBroadcast(id: number): Promise<Broadcast | undefined>;
+  getBroadcast(id: string): Promise<Broadcast | null>;
   getAllBroadcasts(): Promise<Broadcast[]>;
   createBroadcast(broadcast: InsertBroadcast): Promise<Broadcast>;
-  updateBroadcast(id: number, broadcast: Partial<InsertBroadcast>): Promise<Broadcast | undefined>;
-  deleteBroadcast(id: number): Promise<boolean>;
-  getBroadcastsByTv(tvId: number): Promise<Broadcast[]>;
-  getBroadcastsByContent(contentId: number): Promise<Broadcast[]>;
+  updateBroadcast(id: string, broadcast: Partial<InsertBroadcast>): Promise<Broadcast | null>;
+  deleteBroadcast(id: string): Promise<boolean>;
+  getBroadcastsByTv(tvId: string): Promise<Broadcast[]>;
+  getBroadcastsByContent(contentId: string): Promise<Broadcast[]>;
+
+  // Broadcasting Activity methods
+  getBroadcastingActivity(timeRange: string): Promise<BroadcastingActivity[]>;
+  updateBroadcastingActivity(date: string, data: Partial<BroadcastingActivity>): Promise<void>;
 
   // Statistics
   getStats(): Promise<{
@@ -48,25 +73,24 @@ export interface IStorage {
   }>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User> = new Map();
-  private tvs: Map<number, TV> = new Map();
-  private content: Map<number, Content> = new Map();
-  private broadcasts: Map<number, Broadcast> = new Map();
-  private currentUserId = 1;
-  private currentTvId = 1;
-  private currentContentId = 1;
-  private currentBroadcastId = 1;
-
+export class MongoStorage implements IStorage {
   constructor() {
-    this.seedData();
+    this.initializeDatabase();
+  }
+
+  private async initializeDatabase() {
+    await connectToDatabase();
+    await this.seedData();
   }
 
   private async seedData() {
+    // Check if admin user exists
+    const existingAdmin = await UserModel.findOne({ email: "admin@example.com" });
+    if (existingAdmin) return;
+
     // Create admin user
     const hashedPassword = await bcrypt.hash("admin123", 10);
-    const adminUser: User = {
-      id: this.currentUserId++,
+    const adminUser = await UserModel.create({
       email: "admin@example.com",
       password: hashedPassword,
       firstName: "John",
@@ -74,15 +98,12 @@ export class MemStorage implements IStorage {
       role: "admin",
       status: "active",
       phone: "+1 (555) 123-4567",
-      createdAt: new Date(),
       lastLoginAt: new Date(),
-    };
-    this.users.set(adminUser.id, adminUser);
+    });
 
     // Create sample manager
     const managerPassword = await bcrypt.hash("manager123", 10);
-    const managerUser: User = {
-      id: this.currentUserId++,
+    const managerUser = await UserModel.create({
       email: "sarah.manager@company.com",
       password: managerPassword,
       firstName: "Sarah",
@@ -90,15 +111,12 @@ export class MemStorage implements IStorage {
       role: "manager",
       status: "active",
       phone: "+1 (555) 234-5678",
-      createdAt: new Date(Date.now() - 86400000),
       lastLoginAt: new Date(Date.now() - 86400000),
-    };
-    this.users.set(managerUser.id, managerUser);
+    });
 
     // Create sample editor
     const editorPassword = await bcrypt.hash("editor123", 10);
-    const editorUser: User = {
-      id: this.currentUserId++,
+    const editorUser = await UserModel.create({
       email: "mike.editor@company.com",
       password: editorPassword,
       firstName: "Mike",
@@ -106,267 +124,299 @@ export class MemStorage implements IStorage {
       role: "editor",
       status: "pending",
       phone: "+1 (555) 345-6789",
-      createdAt: new Date(Date.now() - 172800000),
-      lastLoginAt: null,
-    };
-    this.users.set(editorUser.id, editorUser);
+    });
 
     // Create sample TVs
-    const sampleTVs = [
-      {
-        id: this.currentTvId++,
-        name: "Conference Room TV",
-        description: "Main conference room display",
-        macAddress: "AA:BB:CC:DD:EE:FF",
-        status: "online",
-        createdAt: new Date(Date.now() - 86400000),
-        createdById: adminUser.id,
-      },
-      {
-        id: this.currentTvId++,
-        name: "Lobby Display",
-        description: "Reception area information display",
-        macAddress: "11:22:33:44:55:66",
-        status: "broadcasting",
-        createdAt: new Date(Date.now() - 172800000),
-        createdById: managerUser.id,
-      },
-      {
-        id: this.currentTvId++,
-        name: "Cafeteria Screen",
-        description: "Menu and announcements display",
-        macAddress: "77:88:99:AA:BB:CC",
-        status: "offline",
-        createdAt: new Date(Date.now() - 259200000),
-        createdById: adminUser.id,
-      },
-    ];
+    const tv1 = await TVModel.create({
+      name: "Conference Room TV",
+      description: "Main conference room display",
+      macAddress: "AA:BB:CC:DD:EE:FF",
+      status: "online",
+      createdById: adminUser._id,
+    });
 
-    sampleTVs.forEach(tv => this.tvs.set(tv.id, tv as TV));
+    const tv2 = await TVModel.create({
+      name: "Lobby Display",
+      description: "Reception area information display",
+      macAddress: "11:22:33:44:55:66",
+      status: "broadcasting",
+      createdById: managerUser._id,
+    });
+
+    const tv3 = await TVModel.create({
+      name: "Cafeteria Screen",
+      description: "Menu and announcements display",
+      macAddress: "77:88:99:AA:BB:CC",
+      status: "offline",
+      createdById: adminUser._id,
+    });
 
     // Create sample content
-    const sampleContent = [
-      {
-        id: this.currentContentId++,
-        title: "Holiday Sale Promotion",
-        description: "Special holiday offers and seasonal promotions for customers",
-        imageUrl: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&h=250",
-        status: "active",
-        selectedTvs: [1, 2, 3],
-        createdAt: new Date(),
-        createdById: managerUser.id,
-      },
-      {
-        id: this.currentContentId++,
-        title: "Company Meeting Slides",
-        description: "Quarterly review presentation for all employees",
-        imageUrl: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&h=250",
-        status: "scheduled",
-        selectedTvs: [1],
-        createdAt: new Date(Date.now() - 86400000),
-        createdById: adminUser.id,
-      },
-      {
-        id: this.currentContentId++,
-        title: "Weekly Menu Display",
-        description: "Cafeteria menu for the upcoming week with nutritional info",
-        imageUrl: "https://images.unsplash.com/photo-1498837167922-ddd27525d352?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&h=250",
-        status: "draft",
-        selectedTvs: [],
-        createdAt: new Date(Date.now() - 172800000),
-        createdById: editorUser.id,
-      },
-    ];
+    await ContentModel.create({
+      title: "Holiday Sale Promotion",
+      description: "Special holiday offers and seasonal promotions for customers",
+      imageUrl: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&h=250",
+      status: "active",
+      selectedTvs: [tv1._id, tv2._id, tv3._id],
+      createdById: managerUser._id,
+    });
 
-    sampleContent.forEach(content => this.content.set(content.id, content as Content));
+    await ContentModel.create({
+      title: "Company Meeting Slides",
+      description: "Quarterly review presentation for all employees",
+      imageUrl: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&h=250",
+      status: "scheduled",
+      selectedTvs: [tv1._id],
+      createdById: adminUser._id,
+    });
+
+    await ContentModel.create({
+      title: "Weekly Menu Display",
+      description: "Cafeteria menu for the upcoming week with nutritional info",
+      imageUrl: "https://images.unsplash.com/photo-1498837167922-ddd27525d352?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&h=250",
+      status: "draft",
+      selectedTvs: [],
+      createdById: editorUser._id,
+    });
+
+    // Create sample broadcasting activity data
+    const today = new Date();
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateString = date.toISOString().split('T')[0];
+      
+      await BroadcastingActivityModel.create({
+        date: dateString,
+        broadcasts: Math.floor(Math.random() * 20) + 5,
+        content: Math.floor(Math.random() * 15) + 3,
+        errors: Math.floor(Math.random() * 5),
+      });
+    }
   }
 
   // User methods
-  async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+  async getUser(id: string): Promise<User | null> {
+    const user = await UserModel.findById(id);
+    return user ? this.transformUser(user) : null;
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.email === email);
+  async getUserByEmail(email: string): Promise<User | null> {
+    const user = await UserModel.findOne({ email });
+    return user ? this.transformUser(user) : null;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const hashedPassword = await bcrypt.hash(insertUser.password, 10);
-    const user: User = {
+    const user = await UserModel.create({
       ...insertUser,
-      id: this.currentUserId++,
       password: hashedPassword,
-      createdAt: new Date(),
-      lastLoginAt: null,
-    };
-    this.users.set(user.id, user);
-    return user;
+    });
+    return this.transformUser(user);
   }
 
-  async updateUser(id: number, updateData: Partial<InsertUser>): Promise<User | undefined> {
-    const user = this.users.get(id);
-    if (!user) return undefined;
-
-    const updatedUser = { ...user, ...updateData };
+  async updateUser(id: string, updateData: Partial<InsertUser>): Promise<User | null> {
     if (updateData.password) {
-      updatedUser.password = await bcrypt.hash(updateData.password, 10);
+      updateData.password = await bcrypt.hash(updateData.password, 10);
     }
-    this.users.set(id, updatedUser);
-    return updatedUser;
+    const user = await UserModel.findByIdAndUpdate(id, updateData, { new: true });
+    return user ? this.transformUser(user) : null;
   }
 
-  async deleteUser(id: number): Promise<boolean> {
-    return this.users.delete(id);
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await UserModel.findByIdAndDelete(id);
+    return !!result;
   }
 
   async getAllUsers(): Promise<User[]> {
-    return Array.from(this.users.values());
+    const users = await UserModel.find();
+    return users.map(user => this.transformUser(user));
   }
 
   async validateUser(email: string, password: string): Promise<User | null> {
-    const user = await this.getUserByEmail(email);
+    const user = await UserModel.findOne({ email });
     if (!user) return null;
 
     const isValid = await bcrypt.compare(password, user.password);
-    return isValid ? user : null;
+    return isValid ? this.transformUser(user) : null;
   }
 
-  async updateLastLogin(userId: number): Promise<void> {
-    const user = this.users.get(userId);
-    if (user) {
-      user.lastLoginAt = new Date();
-      this.users.set(userId, user);
-    }
+  async updateLastLogin(userId: string): Promise<void> {
+    await UserModel.findByIdAndUpdate(userId, { lastLoginAt: new Date() });
   }
 
   // TV methods
-  async getTV(id: number): Promise<TV | undefined> {
-    return this.tvs.get(id);
+  async getTV(id: string): Promise<TV | null> {
+    const tv = await TVModel.findById(id);
+    return tv ? this.transformTV(tv) : null;
   }
 
   async getAllTVs(): Promise<TV[]> {
-    return Array.from(this.tvs.values());
+    const tvs = await TVModel.find();
+    return tvs.map(tv => this.transformTV(tv));
   }
 
   async createTV(insertTV: InsertTV): Promise<TV> {
-    const tv: TV = {
-      ...insertTV,
-      id: this.currentTvId++,
-      createdAt: new Date(),
-    };
-    this.tvs.set(tv.id, tv);
-    return tv;
+    const tv = await TVModel.create(insertTV);
+    return this.transformTV(tv);
   }
 
-  async updateTV(id: number, updateData: Partial<InsertTV>): Promise<TV | undefined> {
-    const tv = this.tvs.get(id);
-    if (!tv) return undefined;
-
-    const updatedTV = { ...tv, ...updateData };
-    this.tvs.set(id, updatedTV);
-    return updatedTV;
+  async updateTV(id: string, updateData: Partial<InsertTV>): Promise<TV | null> {
+    const tv = await TVModel.findByIdAndUpdate(id, updateData, { new: true });
+    return tv ? this.transformTV(tv) : null;
   }
 
-  async deleteTV(id: number): Promise<boolean> {
-    return this.tvs.delete(id);
+  async deleteTV(id: string): Promise<boolean> {
+    const result = await TVModel.findByIdAndDelete(id);
+    return !!result;
   }
 
   async searchTVs(query: string): Promise<TV[]> {
-    const lowerQuery = query.toLowerCase();
-    return Array.from(this.tvs.values()).filter(tv =>
-      tv.name.toLowerCase().includes(lowerQuery) ||
-      tv.description?.toLowerCase().includes(lowerQuery) ||
-      tv.macAddress.toLowerCase().includes(lowerQuery)
-    );
+    const tvs = await TVModel.find({
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { macAddress: { $regex: query, $options: 'i' } }
+      ]
+    });
+    return tvs.map(tv => this.transformTV(tv));
   }
 
   async getTVsByStatus(status: string): Promise<TV[]> {
-    return Array.from(this.tvs.values()).filter(tv => tv.status === status);
+    const tvs = await TVModel.find({ status });
+    return tvs.map(tv => this.transformTV(tv));
   }
 
   // Content methods
-  async getContent(id: number): Promise<Content | undefined> {
-    return this.content.get(id);
+  async getContent(id: string): Promise<Content | null> {
+    const content = await ContentModel.findById(id);
+    return content ? this.transformContent(content) : null;
   }
 
   async getAllContent(): Promise<Content[]> {
-    return Array.from(this.content.values());
+    const content = await ContentModel.find();
+    return content.map(item => this.transformContent(item));
   }
 
   async createContent(insertContent: InsertContent): Promise<Content> {
-    const content: Content = {
-      ...insertContent,
-      id: this.currentContentId++,
-      createdAt: new Date(),
-    };
-    this.content.set(content.id, content);
-    return content;
+    const content = await ContentModel.create(insertContent);
+    return this.transformContent(content);
   }
 
-  async updateContent(id: number, updateData: Partial<InsertContent>): Promise<Content | undefined> {
-    const content = this.content.get(id);
-    if (!content) return undefined;
-
-    const updatedContent = { ...content, ...updateData };
-    this.content.set(id, updatedContent);
-    return updatedContent;
+  async updateContent(id: string, updateData: Partial<InsertContent>): Promise<Content | null> {
+    const content = await ContentModel.findByIdAndUpdate(id, updateData, { new: true });
+    return content ? this.transformContent(content) : null;
   }
 
-  async deleteContent(id: number): Promise<boolean> {
-    return this.content.delete(id);
+  async deleteContent(id: string): Promise<boolean> {
+    const result = await ContentModel.findByIdAndDelete(id);
+    return !!result;
   }
 
   async searchContent(query: string): Promise<Content[]> {
-    const lowerQuery = query.toLowerCase();
-    return Array.from(this.content.values()).filter(content =>
-      content.title.toLowerCase().includes(lowerQuery) ||
-      content.description?.toLowerCase().includes(lowerQuery)
-    );
+    const content = await ContentModel.find({
+      $or: [
+        { title: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } }
+      ]
+    });
+    return content.map(item => this.transformContent(item));
   }
 
   async getContentByStatus(status: string): Promise<Content[]> {
-    return Array.from(this.content.values()).filter(content => content.status === status);
+    const content = await ContentModel.find({ status });
+    return content.map(item => this.transformContent(item));
   }
 
   // Broadcast methods
-  async getBroadcast(id: number): Promise<Broadcast | undefined> {
-    return this.broadcasts.get(id);
+  async getBroadcast(id: string): Promise<Broadcast | null> {
+    const broadcast = await BroadcastModel.findById(id);
+    return broadcast ? this.transformBroadcast(broadcast) : null;
   }
 
   async getAllBroadcasts(): Promise<Broadcast[]> {
-    return Array.from(this.broadcasts.values());
+    const broadcasts = await BroadcastModel.find();
+    return broadcasts.map(broadcast => this.transformBroadcast(broadcast));
   }
 
   async createBroadcast(insertBroadcast: InsertBroadcast): Promise<Broadcast> {
-    const broadcast: Broadcast = {
-      ...insertBroadcast,
-      id: this.currentBroadcastId++,
-      startedAt: new Date(),
-      stoppedAt: null,
-    };
-    this.broadcasts.set(broadcast.id, broadcast);
-    return broadcast;
+    const broadcast = await BroadcastModel.create(insertBroadcast);
+    
+    // Update broadcasting activity
+    const today = new Date().toISOString().split('T')[0];
+    await this.updateBroadcastingActivity(today, { broadcasts: 1 });
+    
+    return this.transformBroadcast(broadcast);
   }
 
-  async updateBroadcast(id: number, updateData: Partial<InsertBroadcast>): Promise<Broadcast | undefined> {
-    const broadcast = this.broadcasts.get(id);
-    if (!broadcast) return undefined;
-
-    const updatedBroadcast = { ...broadcast, ...updateData };
-    this.broadcasts.set(id, updatedBroadcast);
-    return updatedBroadcast;
+  async updateBroadcast(id: string, updateData: Partial<InsertBroadcast>): Promise<Broadcast | null> {
+    const broadcast = await BroadcastModel.findByIdAndUpdate(id, updateData, { new: true });
+    return broadcast ? this.transformBroadcast(broadcast) : null;
   }
 
-  async deleteBroadcast(id: number): Promise<boolean> {
-    return this.broadcasts.delete(id);
+  async deleteBroadcast(id: string): Promise<boolean> {
+    const result = await BroadcastModel.findByIdAndDelete(id);
+    return !!result;
   }
 
-  async getBroadcastsByTv(tvId: number): Promise<Broadcast[]> {
-    return Array.from(this.broadcasts.values()).filter(broadcast => broadcast.tvId === tvId);
+  async getBroadcastsByTv(tvId: string): Promise<Broadcast[]> {
+    const broadcasts = await BroadcastModel.find({ tvId });
+    return broadcasts.map(broadcast => this.transformBroadcast(broadcast));
   }
 
-  async getBroadcastsByContent(contentId: number): Promise<Broadcast[]> {
-    return Array.from(this.broadcasts.values()).filter(broadcast => broadcast.contentId === contentId);
+  async getBroadcastsByContent(contentId: string): Promise<Broadcast[]> {
+    const broadcasts = await BroadcastModel.find({ contentId });
+    return broadcasts.map(broadcast => this.transformBroadcast(broadcast));
+  }
+
+  // Broadcasting Activity methods
+  async getBroadcastingActivity(timeRange: string): Promise<BroadcastingActivity[]> {
+    let days = 7;
+    switch (timeRange) {
+      case '24h':
+        days = 1;
+        break;
+      case '7d':
+        days = 7;
+        break;
+      case '30d':
+        days = 30;
+        break;
+      case '90d':
+        days = 90;
+        break;
+    }
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const startDateString = startDate.toISOString().split('T')[0];
+
+    const activities = await BroadcastingActivityModel.find({
+      date: { $gte: startDateString }
+    }).sort({ date: 1 });
+
+    return activities.map(activity => ({
+      _id: activity._id?.toString(),
+      date: activity.date,
+      broadcasts: activity.broadcasts,
+      content: activity.content,
+      errors: activity.errors,
+      createdAt: activity.createdAt,
+    }));
+  }
+
+  async updateBroadcastingActivity(date: string, data: Partial<BroadcastingActivity>): Promise<void> {
+    await BroadcastingActivityModel.findOneAndUpdate(
+      { date },
+      { 
+        $inc: { 
+          broadcasts: data.broadcasts || 0,
+          content: data.content || 0,
+          errors: data.errors || 0
+        }
+      },
+      { upsert: true }
+    );
   }
 
   // Statistics
@@ -376,10 +426,12 @@ export class MemStorage implements IStorage {
     broadcasting: number;
     users: number;
   }> {
-    const totalTvs = this.tvs.size;
-    const activeContent = Array.from(this.content.values()).filter(c => c.status === 'active').length;
-    const broadcasting = Array.from(this.tvs.values()).filter(tv => tv.status === 'broadcasting').length;
-    const users = this.users.size;
+    const [totalTvs, activeContent, broadcasting, users] = await Promise.all([
+      TVModel.countDocuments(),
+      ContentModel.countDocuments({ status: 'active' }),
+      TVModel.countDocuments({ status: 'broadcasting' }),
+      UserModel.countDocuments(),
+    ]);
 
     return {
       totalTvs,
@@ -388,6 +440,58 @@ export class MemStorage implements IStorage {
       users,
     };
   }
+
+  // Transform methods to ensure consistent data structure
+  private transformUser(user: any): User {
+    return {
+      id: user._id.toString(),
+      email: user.email,
+      password: user.password,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      status: user.status,
+      phone: user.phone,
+      createdAt: user.createdAt,
+      lastLoginAt: user.lastLoginAt,
+    };
+  }
+
+  private transformTV(tv: any): TV {
+    return {
+      id: tv._id.toString(),
+      name: tv.name,
+      description: tv.description,
+      macAddress: tv.macAddress,
+      status: tv.status,
+      createdAt: tv.createdAt,
+      createdById: tv.createdById.toString(),
+    };
+  }
+
+  private transformContent(content: any): Content {
+    return {
+      id: content._id.toString(),
+      title: content.title,
+      description: content.description,
+      imageUrl: content.imageUrl,
+      status: content.status,
+      selectedTvs: content.selectedTvs.map((id: any) => id.toString()),
+      createdAt: content.createdAt,
+      createdById: content.createdById.toString(),
+    };
+  }
+
+  private transformBroadcast(broadcast: any): Broadcast {
+    return {
+      id: broadcast._id.toString(),
+      contentId: broadcast.contentId.toString(),
+      tvId: broadcast.tvId.toString(),
+      status: broadcast.status,
+      startedAt: broadcast.startedAt,
+      stoppedAt: broadcast.stoppedAt,
+    };
+  }
 }
 
-export const storage = new MemStorage();
+export const storage = new MongoStorage();
