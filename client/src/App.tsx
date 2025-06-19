@@ -16,6 +16,7 @@ import Settings from "@/pages/settings";
 // Layout components
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
+import React from "react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

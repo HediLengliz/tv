@@ -40,7 +40,7 @@ export function BroadcastingActivityChart() {
 
   const { data: activityData, isLoading } = useQuery({
     queryKey: ['/api/analytics/broadcasting-activity', timeRange],
-    refetchInterval: 60000, // Refetch every minute
+    refetchInterval: 15000, // Refetch every minute
   });
 
   if (isLoading) {
