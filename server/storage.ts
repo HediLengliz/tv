@@ -1,5 +1,5 @@
 import { users, tvs, content, broadcasts, notifications, type User, type InsertUser, type TV, type InsertTV, type Content, type InsertContent, type Broadcast, type InsertBroadcast, type Notification, type InsertNotification } from "@shared/schema";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 export interface IStorage {
   // User methods
