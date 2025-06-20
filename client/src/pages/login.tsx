@@ -12,13 +12,14 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Tv, Eye, EyeOff } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const { toast } = useToast();
+  const [_, setLocation] = useLocation();
 
   const form = useForm<LoginData>({
     resolver: zodResolver(loginSchema),
@@ -33,12 +34,15 @@ export default function Login() {
     try {
       const response = await apiRequest("POST", "/api/auth/login", data);
       const result = await response.json();
-      
+
       login(result.user);
       toast({
         title: "Success",
         description: result.message,
       });
+
+      // Redirect to dashboard after successful login
+      setLocation("/dashboard");
     } catch (error) {
       toast({
         title: "Error",
@@ -49,6 +53,7 @@ export default function Login() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 py-12 px-4 sm:px-6 lg:px-8">

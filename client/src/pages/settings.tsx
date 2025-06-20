@@ -46,12 +46,6 @@ export default function Settings() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">Settings</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage your account and application preferences
-        </p>
-      </div>
 
       <div className="space-y-6">
         {/* Profile Settings */}

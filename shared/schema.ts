@@ -2,14 +2,17 @@ import { z } from "zod";
 
 // MongoDB Document interfaces
 export interface User {
+  emailVerificationToken: string;
+  emailVerificationTokenExpires: Date;
+  emailVerified: { type: Boolean, default: false },
   _id?: string;
   id?: string;
   email: string;
   password: string;
   firstName: string;
   lastName: string;
-  role: string;
-  status: string;
+  role: "editor" | "manager" | "admin";
+  status: "pending" | "active" | "inactive";
   phone?: string;
   createdAt: Date;
   lastLoginAt?: Date | null;
@@ -36,6 +39,7 @@ export interface Content {
   selectedTvs: string[];
   createdAt: Date;
   createdById: string;
+  duration?: number;
 }
 
 export interface Broadcast {
@@ -64,6 +68,7 @@ export interface BroadcastingActivity {
   broadcasts: number;
   content: number;
   errors: number;
+  stoppedAt?: Date | null;
   createdAt: Date;
 }
 
@@ -93,12 +98,15 @@ export const insertContentSchema = z.object({
   status: z.enum(["draft", "active", "scheduled", "archived"]).default("draft"),
   selectedTvs: z.array(z.string()).default([]),
   createdById: z.string().min(1, "Creator ID is required"),
+  duration: z.number().min(1, "Duration must be at least 1 second").default(15),
 });
 
 export const insertBroadcastSchema = z.object({
   contentId: z.string().min(1, "Content ID is required"),
   tvId: z.string().min(1, "TV ID is required"),
   status: z.enum(["active", "stopped", "error"]).default("active"),
+  startedAt: z.date().optional(),
+  stoppedAt: z.date().optional(),
 });
 
 export const insertNotificationSchema = z.object({

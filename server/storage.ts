@@ -1,33 +1,36 @@
-import { 
-  UserModel, 
-  TVModel, 
-  ContentModel, 
-  BroadcastModel, 
+import {
+  UserModel,
+  TVModel,
+  ContentModel,
+  BroadcastModel,
   NotificationModel,
   BroadcastingActivityModel,
-  connectToDatabase 
+  connectToDatabase
 } from './database.js';
-import { 
-  type User, 
-  type InsertUser, 
-  type TV, 
-  type InsertTV, 
-  type Content, 
-  type InsertContent, 
-  type Broadcast, 
-  type InsertBroadcast, 
-  type Notification, 
+import {
+  type User,
+  type InsertUser,
+  type TV,
+  type InsertTV,
+  type Content,
+  type InsertContent,
+  type Broadcast,
+  type InsertBroadcast,
+  type Notification,
   type InsertNotification,
   type BroadcastingActivity
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
-
+import { emailTransporter, getVerificationEmailTemplate } from './email.js';
+import { generateVerificationToken } from './utils/token.js';
+import {number, undefined} from "zod";
 export interface IStorage {
   // User methods
   getUser(id: string): Promise<User | null>;
   getUserByEmail(email: string): Promise<User | null>;
   createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, user: Partial<InsertUser>): Promise<User | null>;
+
+  updateUser(id: string | undefined, user: Partial<InsertUser>): Promise<User | null>;
   deleteUser(id: string): Promise<boolean>;
   getAllUsers(): Promise<User[]>;
   validateUser(email: string, password: string): Promise<User | null>;
@@ -77,123 +80,106 @@ export class MongoStorage implements IStorage {
   constructor() {
     this.initializeDatabase();
   }
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const hashedPassword = await bcrypt.hash(insertUser.password, 10);
+    const verificationToken = generateVerificationToken(insertUser.email);
+    const user = await UserModel.create({
+      ...insertUser,
+      password: hashedPassword,
+      role: insertUser.role as "editor" | "manager" | "admin", // Explicitly cast role
+      emailVerified: false,
+      emailVerificationToken: verificationToken,
+      emailVerificationTokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+    });
 
+    // Send verification email
+    try {
+      await emailTransporter.sendMail(getVerificationEmailTemplate(user, verificationToken));
+    } catch (error) {
+      console.error('Failed to send verification email:', error);
+    }
+
+    return this.transformUser(user);
+  }
+
+// Add a method to verify email
+  async verifyEmail(token: string): Promise<boolean> {
+    try {
+      console.log(`Processing verification token: ${token}`);
+
+      const user = await UserModel.findOne({
+        emailVerificationToken: token,
+        emailVerificationTokenExpires: { $gt: new Date() }
+      });
+
+      if (!user) {
+        console.error('Invalid or expired verification token');
+        throw new Error('Invalid or expired verification token');
+      }
+
+      console.log(`Found user for verification: ${user.email}, current verified status: ${user.emailVerified}`);
+
+      // Update user properties
+      user.emailVerified = true;
+      user.status = 'active';
+      user.emailVerificationToken = '';
+
+      // Save and wait for the save to complete
+      const savedUser = await user.save();
+
+      console.log(`User after save: ${savedUser.email}, verified: ${savedUser.emailVerified}, status: ${savedUser.status}`);
+
+      return true;
+    } catch (error) {
+      console.error('Error in verifyEmail:', error);
+      throw error;
+    }
+  }
+  // async generateEmailVerification(email: string): Promise<{ token: string } | null> {
+  //   const user = await this.getUserByEmail(email);
+  //   if (!user) return null;
+  //
+  //   const token = Math.random().toString(36).substring(2); // Example token generation
+  //   user.emailVerificationToken = token;
+  //   user.emailVerificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  //   await this.updateUser(user.id); // Save the updated user
+  //   return { token };
+  // }
+  async generateEmailVerification(email: string): Promise<{ token: string } | null> {
+    const user = await this.getUserByEmail(email);
+    if (!user) return null;
+
+    const token = Math.random().toString(36).substring(2); // Example token generation
+    user.emailVerificationToken = token;
+    user.emailVerificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    await this.updateUser(user.id,user); // Save the updated user
+    return { token };
+  }
+
+  async sendVerificationEmail(user: User, verificationToken: string): Promise<boolean> {
+    try {
+      const emailTemplate = getVerificationEmailTemplate(user, verificationToken);
+      console.log("Attempting to send email to:", user.email);
+      console.log("Using SMTP config:", {
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        secure: process.env.SMTP_SECURE,
+        user: process.env.SMTP_USER
+      });
+
+      const info = await emailTransporter.sendMail(emailTemplate);
+      console.log("Email sent successfully:", info);
+      return true;
+    } catch (error) {
+      console.error("Failed to send email:", error);
+      return false;
+    }
+  }
   private async initializeDatabase() {
     await connectToDatabase();
     await this.seedData();
   }
 
-  private async seedData() {
-    // Check if admin user exists
-    const existingAdmin = await UserModel.findOne({ email: "admin@example.com" });
-    if (existingAdmin) return;
-
-    // Create admin user
-    const hashedPassword = await bcrypt.hash("admin123", 10);
-    const adminUser = await UserModel.create({
-      email: "admin@example.com",
-      password: hashedPassword,
-      firstName: "John",
-      lastName: "Admin",
-      role: "admin",
-      status: "active",
-      phone: "+1 (555) 123-4567",
-      lastLoginAt: new Date(),
-    });
-
-    // Create sample manager
-    const managerPassword = await bcrypt.hash("manager123", 10);
-    const managerUser = await UserModel.create({
-      email: "sarah.manager@company.com",
-      password: managerPassword,
-      firstName: "Sarah",
-      lastName: "Manager",
-      role: "manager",
-      status: "active",
-      phone: "+1 (555) 234-5678",
-      lastLoginAt: new Date(Date.now() - 86400000),
-    });
-
-    // Create sample editor
-    const editorPassword = await bcrypt.hash("editor123", 10);
-    const editorUser = await UserModel.create({
-      email: "mike.editor@company.com",
-      password: editorPassword,
-      firstName: "Mike",
-      lastName: "Editor",
-      role: "editor",
-      status: "pending",
-      phone: "+1 (555) 345-6789",
-    });
-
-    // Create sample TVs
-    const tv1 = await TVModel.create({
-      name: "Conference Room TV",
-      description: "Main conference room display",
-      macAddress: "AA:BB:CC:DD:EE:FF",
-      status: "online",
-      createdById: adminUser._id,
-    });
-
-    const tv2 = await TVModel.create({
-      name: "Lobby Display",
-      description: "Reception area information display",
-      macAddress: "11:22:33:44:55:66",
-      status: "broadcasting",
-      createdById: managerUser._id,
-    });
-
-    const tv3 = await TVModel.create({
-      name: "Cafeteria Screen",
-      description: "Menu and announcements display",
-      macAddress: "77:88:99:AA:BB:CC",
-      status: "offline",
-      createdById: adminUser._id,
-    });
-
-    // Create sample content
-    await ContentModel.create({
-      title: "Holiday Sale Promotion",
-      description: "Special holiday offers and seasonal promotions for customers",
-      imageUrl: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&h=250",
-      status: "active",
-      selectedTvs: [tv1._id, tv2._id, tv3._id],
-      createdById: managerUser._id,
-    });
-
-    await ContentModel.create({
-      title: "Company Meeting Slides",
-      description: "Quarterly review presentation for all employees",
-      imageUrl: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&h=250",
-      status: "scheduled",
-      selectedTvs: [tv1._id],
-      createdById: adminUser._id,
-    });
-
-    await ContentModel.create({
-      title: "Weekly Menu Display",
-      description: "Cafeteria menu for the upcoming week with nutritional info",
-      imageUrl: "https://images.unsplash.com/photo-1498837167922-ddd27525d352?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=400&h=250",
-      status: "draft",
-      selectedTvs: [],
-      createdById: editorUser._id,
-    });
-
-    // Create sample broadcasting activity data
-    const today = new Date();
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateString = date.toISOString().split('T')[0];
-      
-      await BroadcastingActivityModel.create({
-        date: dateString,
-        broadcasts: Math.floor(Math.random() * 20) + 5,
-        content: Math.floor(Math.random() * 15) + 3,
-        errors: Math.floor(Math.random() * 5),
-      });
-    }
-  }
 
   // User methods
   async getUser(id: string): Promise<User | null> {
@@ -206,22 +192,65 @@ export class MongoStorage implements IStorage {
     return user ? this.transformUser(user) : null;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const hashedPassword = await bcrypt.hash(insertUser.password, 10);
-    const user = await UserModel.create({
-      ...insertUser,
-      password: hashedPassword,
-    });
-    return this.transformUser(user);
-  }
+  // async createUser(insertUser: InsertUser): Promise<User> {
+  //   const hashedPassword = await bcrypt.hash(insertUser.password, 10);
+  //   const user = await UserModel.create({
+  //     ...insertUser,
+  //     password: hashedPassword,
+  //   });
+  //   return this.transformUser(user);
+  // }
 
-  async updateUser(id: string, updateData: Partial<InsertUser>): Promise<User | null> {
-    if (updateData.password) {
-      updateData.password = await bcrypt.hash(updateData.password, 10);
+  async updateUser(id: string | undefined, user: Partial<InsertUser>): Promise<User | null> {
+    if (user.password) {
+      user.password = await bcrypt.hash(user.password, 10);
     }
-    const user = await UserModel.findByIdAndUpdate(id, updateData, { new: true });
-    return user ? this.transformUser(user) : null;
+    const updatedUser = await UserModel.findByIdAndUpdate(id, user, { new: true }); // Renamed variable
+    return updatedUser ? this.transformUser(updatedUser) : null;
   }
+  private async seedData() {
+    // Check if admin user exists
+    const existingAdmin = await UserModel.findOne({ email: "admin@example.com" });
+    if (existingAdmin) return;
+
+    // First, delete the problematic record causing the duplicate key error
+    try {
+      await BroadcastingActivityModel.deleteOne({ date: "2025-06-19" });
+      console.log("Removed problematic test data from 2025-06-19");
+    } catch (error) {
+      console.error("Error while removing test data:", error);
+    }
+
+    // Create sample broadcasting activity data
+    const today = new Date();
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateString = date.toISOString().split('T')[0];
+
+      // Check if activity for this date already exists
+      const existingActivity = await BroadcastingActivityModel.findOne({ date: dateString });
+      if (!existingActivity) {
+        try {
+          await BroadcastingActivityModel.create({
+            date: dateString,
+            broadcasts: Math.floor(Math.random() * 20) + 5,
+            content: Math.floor(Math.random() * 15) + 3,
+            errors: Math.floor(Math.random() * 5),
+          });
+        } catch (error) {
+          console.error(`Failed to create activity for date ${dateString}:`, error);
+        }
+      }
+    }
+  }
+  // async updateUser(id: string | undefined, user: Partial<InsertUser>): Promise<User | null> {
+  //   if (user.password) {
+  //     user.password = await bcrypt.hash(user.password, 10);
+  //   }
+  //   const user = await UserModel.findByIdAndUpdate(id, user, { new: true });
+  //   return user ? this.transformUser(user) : null;
+  // }
 
   async deleteUser(id: string): Promise<boolean> {
     const result = await UserModel.findByIdAndDelete(id);
@@ -341,11 +370,11 @@ export class MongoStorage implements IStorage {
 
   async createBroadcast(insertBroadcast: InsertBroadcast): Promise<Broadcast> {
     const broadcast = await BroadcastModel.create(insertBroadcast);
-    
+
     // Update broadcasting activity
     const today = new Date().toISOString().split('T')[0];
     await this.updateBroadcastingActivity(today, { broadcasts: 1 });
-    
+
     return this.transformBroadcast(broadcast);
   }
 
@@ -406,17 +435,30 @@ export class MongoStorage implements IStorage {
   }
 
   async updateBroadcastingActivity(date: string, data: Partial<BroadcastingActivity>): Promise<void> {
-    await BroadcastingActivityModel.findOneAndUpdate(
-      { date },
-      { 
-        $inc: { 
-          broadcasts: data.broadcasts || 0,
-          content: data.content || 0,
-          errors: data.errors || 0
-        }
-      },
-      { upsert: true }
-    );
+    // Check if a record with this date already exists
+    const existingActivity = await BroadcastingActivityModel.findOne({ date });
+
+    if (existingActivity) {
+      // If it exists, update the existing record
+      await BroadcastingActivityModel.updateOne(
+          { date },
+          {
+            $inc: {
+              broadcasts: data.broadcasts || 0,
+              content: data.content || 0,
+              errors: data.errors || 0
+            }
+          }
+      );
+    } else {
+      // If it doesn't exist, create a new record
+      await BroadcastingActivityModel.create({
+        date,
+        broadcasts: data.broadcasts || 0,
+        content: data.content || 0,
+        errors: data.errors || 0
+      });
+    }
   }
 
   // Statistics
@@ -444,6 +486,9 @@ export class MongoStorage implements IStorage {
   // Transform methods to ensure consistent data structure
   private transformUser(user: any): User {
     return {
+      emailVerificationToken: "",
+      emailVerified: user.emailVerified || false,
+      emailVerificationTokenExpires: new Date(),
       id: user._id.toString(),
       email: user.email,
       password: user.password,
@@ -453,7 +498,7 @@ export class MongoStorage implements IStorage {
       status: user.status,
       phone: user.phone,
       createdAt: user.createdAt,
-      lastLoginAt: user.lastLoginAt,
+      lastLoginAt: user.lastLoginAt
     };
   }
 

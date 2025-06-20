@@ -1,189 +1,156 @@
-import { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { insertTvSchema, type InsertTV } from "@shared/schema";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
+import { AuthContext } from "@/contexts/auth-context";
+import { useQuery } from "@tanstack/react-query";
 
 interface TvModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tv?: any;
+  onSubmit: (data: any) => void;
 }
 
-export function TvModal({ open, onOpenChange, tv }: TvModalProps) {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+export function TvModal({ open, onOpenChange, tv, onSubmit }: TvModalProps) {
+  const { user } = useContext(AuthContext);
 
-  const form = useForm<InsertTV>({
-    resolver: zodResolver(insertTvSchema),
-    defaultValues: {
-      name: tv?.name || "",
-      description: tv?.description || "",
-      macAddress: tv?.macAddress || "",
-      status: tv?.status || "offline",
-      createdById: user?.id || 1,
+  // Fetch users for the dropdown
+  const { data: users = [] } = useQuery({
+    queryKey: ["/api/users"],
+    queryFn: async () => {
+      const response = await fetch("/api/users", { credentials: "include" });
+      return response.json();
     },
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data: InsertTV) => apiRequest("POST", "/api/tvs", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tvs"] });
-      toast({
-        title: "Success",
-        description: "TV created successfully",
-      });
-      onOpenChange(false);
-      form.reset();
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create TV",
-        variant: "destructive",
-      });
-    },
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    macAddress: "",
+    status: "offline",
+    createdById: user?.id || "",
   });
 
-  const updateMutation = useMutation({
-    mutationFn: (data: InsertTV) => apiRequest("PUT", `/api/tvs/${tv.id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tvs"] });
-      toast({
-        title: "Success",
-        description: "TV updated successfully",
-      });
-      onOpenChange(false);
-      form.reset();
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update TV",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const onSubmit = (data: InsertTV) => {
+  useEffect(() => {
     if (tv) {
-      updateMutation.mutate(data);
+      setForm({
+        name: tv.name || "",
+        description: tv.description || "",
+        macAddress: tv.macAddress || "",
+        status: tv.status || "offline",
+        createdById: tv.createdById || user?.id || "",
+      });
     } else {
-      createMutation.mutate(data);
+      setForm({
+        name: "",
+        description: "",
+        macAddress: "",
+        status: "offline",
+        createdById: user?.id || "",
+      });
     }
+  }, [tv, open, user]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const isLoading = createMutation.isPending || updateMutation.isPending;
+  const handleStatusChange = (value: string) => {
+    setForm({ ...form, status: value });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(form);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>{tv ? "Edit TV" : "Add New TV"}</DialogTitle>
-          <DialogDescription>
-            {tv ? "Update TV information and settings." : "Create a new TV configuration for your network."}
-          </DialogDescription>
-        </DialogHeader>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>TV Name *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter TV name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Enter TV description"
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="macAddress"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>MAC Address *</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="XX:XX:XX:XX:XX:XX"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="online">Online</SelectItem>
-                      <SelectItem value="offline">Offline</SelectItem>
-                      <SelectItem value="maintenance">Maintenance</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tv ? "Edit TV" : "Add New TV"}</DialogTitle>
+            <DialogDescription>
+              Enter the details for the TV device
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label htmlFor="name" className="text-sm font-medium">Name</label>
+                <Input
+                    id="name"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="Enter TV name"
+                    required
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="description" className="text-sm font-medium">Description</label>
+                <Input
+                    id="description"
+                    name="description"
+                    value={form.description}
+                    onChange={handleChange}
+                    placeholder="Enter description"
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="macAddress" className="text-sm font-medium">MAC Address</label>
+                <Input
+                    id="macAddress"
+                    name="macAddress"
+                    value={form.macAddress}
+                    onChange={handleChange}
+                    placeholder="AA:BB:CC:DD:EE:FF"
+                    required
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="status" className="text-sm font-medium">Status</label>
+                <Select value={form.status} onValueChange={handleStatusChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="offline">Offline</SelectItem>
+                    <SelectItem value="maintenance">Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="createdById" className="text-sm font-medium">Created By</label>
+                <Select
+                    value={form.createdById}
+                    onValueChange={(value) => setForm({ ...form, createdById: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select creator" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map((user: any) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.firstName} {user.lastName}
+                        </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Saving..." : tv ? "Update TV" : "Create TV"}
+              <Button type="submit">
+                {tv ? "Update" : "Create"}
               </Button>
             </DialogFooter>
           </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
   );
 }

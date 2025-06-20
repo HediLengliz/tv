@@ -1,55 +1,133 @@
-import type { Express } from "express";
+import express, { Express, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
 import { insertUserSchema, insertTvSchema, insertContentSchema, loginSchema } from "@shared/schema";
 import { z } from "zod";
+
+import path from "path";
+
+import mongoose from 'mongoose';
+import { upload } from './utils/fileupload';
+
+function handleError(res: Response, error: unknown) {
+  if (error instanceof z.ZodError) {
+    return res.status(400).json({ message: "Invalid input", errors: error.errors });
+  }
+  if (error instanceof Error) {
+    console.error("Error:", error.message);
+  } else {
+    console.error("Unknown error:", error);
+  }
+  res.status(500).json({ message: "Internal server error" });
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
-      
       const user = await storage.validateUser(email, password);
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
-
       await storage.updateLastLogin(user.id!);
-      
-      // In a real app, you'd create a JWT token here
       const { password: _, ...userWithoutPassword } = user;
       res.json({ user: userWithoutPassword, message: "Login successful" });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      handleError(res, error);
+    }
+  });
+  app.get("/api/verify-email", async (req, res) => {
+    try {
+      const { token } = req.query;
+      if (!token || typeof token !== 'string') {
+        return res.status(400).json({ message: "Invalid token" });
       }
-      res.status(500).json({ message: "Internal server error" });
+
+      const verified = await storage.verifyEmail(token);
+      if (!verified) {
+        return res.status(400).json({ message: "Invalid or expired verification link" });
+      }
+
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      handleError(res, error);
     }
   });
 
+
+  app.post("/api/resend-verification-email", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      // Check if user exists
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Check if already verified
+      if (user.emailVerified) {
+        return res.status(400).json({ message: "Email is already verified" });
+      }
+
+      // Generate new verification token and update user
+      const result = await storage.generateEmailVerification(email);
+      if (!result) {
+        return res.status(500).json({ message: "Failed to generate verification token" });
+      }
+
+      // Send the verification email
+      const success = await storage.sendVerificationEmail(user, result.token);
+      if (!success) {
+        return res.status(500).json({ message: "Failed to send verification email" });
+      }
+
+      res.json({ message: "Verification email sent successfully" });
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
   app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      
-      // Check if user already exists
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
         return res.status(400).json({ message: "User already exists" });
       }
-
       const user = await storage.createUser(userData);
       const { password: _, ...userWithoutPassword } = user;
-      
       res.status(201).json({ user: userWithoutPassword, message: "User created successfully" });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid input", errors: error.errors });
-      }
-      res.status(500).json({ message: "Internal server error" });
+      handleError(res, error);
     }
   });
+ //verifcation route
+  app.post("/api/verify-email", async (req, res) => {
+    try {
+      const { token } = req.body;
 
+      if (!token) {
+        return res.status(400).json({ message: "Verification token is required" });
+      }
+
+      const success = await storage.verifyEmail(token);
+
+      if (success) {
+        return res.status(200).json({ message: "Email verified successfully" });
+      } else {
+        return res.status(400).json({ message: "Invalid or expired verification token" });
+      }
+    } catch (error) {
+      console.error('Email verification error:', error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : 'Failed to verify email'
+      });
+    }
+  });
   // User routes
   app.get("/api/users", async (req, res) => {
     try {
@@ -57,7 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const usersWithoutPasswords = users.map(({ password, ...user }) => user);
       res.json(usersWithoutPasswords);
     } catch (error) {
-      res.status(500).json({ message: "Internal server error" });
+      handleError(res, error);
     }
   });
 
@@ -68,10 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { password: _, ...userWithoutPassword } = user;
       res.status(201).json(userWithoutPassword);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid input", errors: error.errors });
-      }
-      res.status(500).json({ message: "Internal server error" });
+      handleError(res, error);
     }
   });
 
@@ -79,19 +154,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = req.params.id;
       const userData = insertUserSchema.partial().parse(req.body);
-      
       const user = await storage.updateUser(id, userData);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-
       const { password: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid input", errors: error.errors });
-      }
-      res.status(500).json({ message: "Internal server error" });
+      handleError(res, error);
     }
   });
 
@@ -99,22 +169,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = req.params.id;
       const deleted = await storage.deleteUser(id);
-      
       if (!deleted) {
         return res.status(404).json({ message: "User not found" });
       }
-
       res.json({ message: "User deleted successfully" });
     } catch (error) {
-      res.status(500).json({ message: "Internal server error" });
+      handleError(res, error);
     }
   });
+
 
   // TV routes
   app.get("/api/tvs", async (req, res) => {
     try {
       const { search, status } = req.query;
-      
       let tvs;
       if (search) {
         tvs = await storage.searchTVs(search as string);
@@ -126,31 +194,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Populate creator info
       const tvsWithCreators = await Promise.all(
-        tvs.map(async (tv) => {
-          const creator = await storage.getUser(tv.createdById);
-          return {
-            ...tv,
-            createdBy: creator ? `${creator.firstName} ${creator.lastName}` : 'Unknown'
-          };
-        })
+          tvs.map(async (tv) => {
+            const creator = await storage.getUser(tv.createdById);
+            return {
+              ...tv,
+              createdBy: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown"
+            };
+          })
       );
 
       res.json(tvsWithCreators);
     } catch (error) {
-      res.status(500).json({ message: "Internal server error" });
+      handleError(res, error);
     }
   });
 
   app.post("/api/tvs", async (req, res) => {
     try {
       const tvData = insertTvSchema.parse(req.body);
-      const tv = await storage.createTV(tvData);
+      if (!tvData.createdById) {
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: [{ path: ["createdById"], message: "Creator ID is required" }]
+        });
+      }
+
+      const processedTvData = {
+        ...tvData,
+        createdById: tvData.createdById // Pass as string
+      };
+
+      const tv = await storage.createTV(processedTvData);
       res.status(201).json(tv);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid input", errors: error.errors });
-      }
-      res.status(500).json({ message: "Internal server error" });
+      handleError(res, error);
     }
   });
 
@@ -158,7 +235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = req.params.id;
       const tvData = insertTvSchema.partial().parse(req.body);
-      
+
       const tv = await storage.updateTV(id, tvData);
       if (!tv) {
         return res.status(404).json({ message: "TV not found" });
@@ -172,12 +249,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
+  app.get("/api/tvs/:id", async (req, res) => {
+    try {
+      const id = req.params.id;
+      const tv = await storage.getTV(id);
 
+      if (!tv) {
+        return res.status(404).json({ message: "TV not found" });
+      }
+
+      // Get creator info
+      const creator = await storage.getUser(tv.createdById);
+      const tvWithCreator = {
+        ...tv,
+        createdBy: creator ? `${creator.firstName} ${creator.lastName}` : "Unknown"
+      };
+
+      res.json(tvWithCreator);
+    } catch (error) {
+      handleError(res, error);
+    }
+  });
   app.delete("/api/tvs/:id", async (req, res) => {
     try {
       const id = req.params.id;
       const deleted = await storage.deleteTV(id);
-      
+
       if (!deleted) {
         return res.status(404).json({ message: "TV not found" });
       }
@@ -192,7 +289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/content", async (req, res) => {
     try {
       const { search, status } = req.query;
-      
+
       let content;
       if (search) {
         content = await storage.searchContent(search as string);
@@ -223,11 +320,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const contentData = insertContentSchema.parse(req.body);
       const content = await storage.createContent(contentData);
-      
+
       // Update broadcasting activity for content creation
       const today = new Date().toISOString().split('T')[0];
       await storage.updateBroadcastingActivity(today, { content: 1 });
-      
+
       res.status(201).json(content);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -241,7 +338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = req.params.id;
       const contentData = insertContentSchema.partial().parse(req.body);
-      
+
       const content = await storage.updateContent(id, contentData);
       if (!content) {
         return res.status(404).json({ message: "Content not found" });
@@ -260,7 +357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = req.params.id;
       const deleted = await storage.deleteContent(id);
-      
+
       if (!deleted) {
         return res.status(404).json({ message: "Content not found" });
       }
@@ -275,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/broadcast", async (req, res) => {
     try {
       const { contentId, tvIds } = req.body;
-      
+
       const broadcasts = [];
       for (const tvId of tvIds) {
         const broadcast = await storage.createBroadcast({
@@ -292,11 +389,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json({ broadcasts, message: "Broadcasting started successfully" });
     } catch (error) {
       console.error('Broadcasting error:', error);
-      
+
       // Update broadcasting activity for errors
       const today = new Date().toISOString().split('T')[0];
       await storage.updateBroadcastingActivity(today, { errors: 1 });
-      
+
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -304,7 +401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/broadcast/stop", async (req, res) => {
     try {
       const { broadcastIds } = req.body;
-      
+
       for (const id of broadcastIds) {
         await storage.updateBroadcast(id, {
           status: "stopped",
@@ -353,6 +450,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }
+  });
+
+  // Image upload endpoint
+  app.post("/api/upload", upload.single("image"), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    // Serve files from /uploads
+    const url = `/uploads/${req.file.filename}`;
+    res.json({ url });
   });
 
   const httpServer = createServer(app);

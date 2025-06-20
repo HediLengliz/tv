@@ -4,6 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
+import VerifyEmail from "@/components/VerifyEmail";
 
 // Pages
 import Login from "@/pages/login";
@@ -17,6 +18,7 @@ import Settings from "@/pages/settings";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/topbar";
 import React from "react";
+import ContentBroadcast from "@/pages/content-broadcast.tsx";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -115,7 +117,14 @@ function Router() {
           </DashboardLayout>
         </ProtectedRoute>
       </Route>
+        <Route path="/verify-email">
 
+            <VerifyEmail />
+
+        </Route>
+        <Route path="/broadcast/:tvId">
+            <ContentBroadcast />
+        </Route>
       <Route path="/settings">
         <ProtectedRoute>
           <DashboardLayout

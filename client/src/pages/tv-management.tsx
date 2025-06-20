@@ -10,7 +10,8 @@ import { TvModal } from "@/components/tv/tv-modal";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatDate, getStatusColor } from "@/lib/utils";
-import { Plus, Search, Filter, Radio, Eye, Edit, Trash2 } from "lucide-react";
+import {Plus, Search, Filter, Radio, Eye, Edit, Trash2, Play} from "lucide-react";
+import { useLocation } from "wouter";
 
 export default function TvManagement() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -28,11 +29,18 @@ export default function TvManagement() {
       if (searchQuery) params.append("search", searchQuery);
       if (statusFilter && statusFilter !== "all") params.append("status", statusFilter);
       if (params.toString()) url += `?${params.toString()}`;
-      
+
       const response = await fetch(url, { credentials: "include" });
       return response.json();
     },
   });
+
+  const [, setLocation] = useLocation();
+
+  const handleBroadcast = (tvId: string) => {
+    // Navigate to the broadcast page for this TV
+    setLocation(`/broadcast/${tvId}`);
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/tvs/${id}`),
@@ -54,7 +62,7 @@ export default function TvManagement() {
 
   const broadcastMutation = useMutation({
     mutationFn: ({ contentId, tvIds }: { contentId: number; tvIds: number[] }) =>
-      apiRequest("POST", "/api/broadcast", { contentId, tvIds }),
+        apiRequest("POST", "/api/broadcast", { contentId, tvIds }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tvs"] });
       toast({
@@ -71,25 +79,63 @@ export default function TvManagement() {
     },
   });
 
+
+  // --- Add this mutation for creating a TV ---
+  const createMutation = useMutation({
+    mutationFn: (tvData: any) => apiRequest("POST", "/api/tvs", tvData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tvs"] });
+      toast({
+        title: "Success",
+        description: "TV added successfully",
+      });
+      closeModal();
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add TV",
+        variant: "destructive",
+      });
+    },
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, tvData }: { id: string; tvData: any }) =>
+        apiRequest("PUT", `/api/tvs/${id}`, tvData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tvs"] });
+      toast({
+        title: "Success",
+        description: "TV updated successfully",
+      });
+      closeModal();
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update TV",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleEdit = (tv: any) => {
     setSelectedTv(tv);
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this TV?")) {
-      deleteMutation.mutate(id);
-    }
+
+  const handleDelete = (id: string) => {
+    deleteMutation.mutate(id);
+
   };
 
-  const handleBroadcast = (tvId: number) => {
-    // This would typically open a content selection modal
-    // For demo purposes, we'll just show a toast
-    toast({
-      title: "Broadcasting",
-      description: "Content selection modal would open here",
-    });
-  };
+  // const handleBroadcast = (tvId: number) => {
+  //   toast({
+  //     title: "Broadcasting",
+  //     description: "Content selection modal would open here",
+  //   });
+  // };
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -101,150 +147,155 @@ export default function TvManagement() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold">TV Management</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage your TV devices and their configurations
-          </p>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+          </div>
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add New TV
+          </Button>
         </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add New TV
-        </Button>
-      </div>
 
-      {/* Search and Filters */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Search</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search TVs..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
+        {/* Search and Filters */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                      placeholder="Search TVs..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Status</label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="offline">Offline</SelectItem>
+                    <SelectItem value="broadcasting">Broadcasting</SelectItem>
+                    <SelectItem value="maintenance">Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Created By</label>
+                <Select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Users" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    <SelectItem value="admin">John Admin</SelectItem>
+                    <SelectItem value="manager">Sarah Manager</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button variant="outline" className="w-full">
+                  <Filter className="mr-2 h-4 w-4" />
+                  Filter
+                </Button>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Status</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
-                  <SelectItem value="offline">Offline</SelectItem>
-                  <SelectItem value="broadcasting">Broadcasting</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Created By</label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Users" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Users</SelectItem>
-                  <SelectItem value="admin">John Admin</SelectItem>
-                  <SelectItem value="manager">Sarah Manager</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              <Button variant="outline" className="w-full">
-                <Filter className="mr-2 h-4 w-4" />
-                Filter
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* TV Table */}
-      <Card>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>TV Details</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>MAC Address</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tvs.map((tv: any) => (
-                <TableRow key={tv.id} className="hover:bg-muted/50">
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{tv.name}</div>
-                      <div className="text-sm text-muted-foreground">{tv.description}</div>
-                      <div className="text-xs text-muted-foreground mt-1">ID: TV-{tv.id.toString().padStart(3, '0')}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(tv.status)}>
-                      <div className="w-1.5 h-1.5 bg-current rounded-full mr-1.5"></div>
-                      {tv.status.charAt(0).toUpperCase() + tv.status.slice(1)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {tv.macAddress}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">{formatDate(tv.createdAt)}</div>
-                    <div className="text-sm text-muted-foreground">by {tv.createdBy}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleBroadcast(tv.id)}
-                        disabled={tv.status === 'offline'}
-                        className="text-primary hover:text-primary"
-                      >
-                        <Radio className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(tv)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(tv.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+        {/* TV Table */}
+        <Card>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>TV Details</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>MAC Address</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {tvs.map((tv: {
+                  createdBy: any;
+                  id: string; status: string;name:string;description:string;macAddress:string;createdAt:Date;}) => (
+                    <TableRow key={tv.id} className="hover:bg-muted/50">
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{tv.name}</div>
+                          <div className="text-sm text-muted-foreground">{tv.description}</div>
+                          <div className="text-xs text-muted-foreground mt-1">ID: TV-{tv.id.toString().padStart(3, '0')}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(tv.status)}>
+                          <div className="w-1.5 h-1.5 bg-current rounded-full mr-1.5"></div>
+                          {tv.status.charAt(0).toUpperCase() + tv.status.slice(1)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {tv.macAddress}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{formatDate(tv.createdAt)}</div>
+                        <div className="text-sm text-muted-foreground">by {tv.createdBy}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleBroadcast(tv.id)}
+                              className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200"
+                          >
+                            <Play className="h-4 w-4 mr-1" />
+                            Broadcast
+                          </Button>
+                          <Button variant="ghost" size="sm">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(tv)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(tv.id)}
+                              className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
 
-      <TvModal
-        open={isModalOpen}
-        onOpenChange={closeModal}
-        tv={selectedTv}
-      />
-    </div>
+        <TvModal
+            open={isModalOpen}
+            onOpenChange={closeModal}
+            tv={selectedTv}
+            onSubmit={(tvData: any) => {
+              if (selectedTv) {
+                updateMutation.mutate({ id: selectedTv.id, tvData });
+              } else {
+                createMutation.mutate(tvData);
+              }
+            }}
+        />
+      </div>
   );
 }

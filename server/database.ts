@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import {boolean, string} from "zod";
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tv-content-manager';
 
@@ -23,6 +24,9 @@ const userSchema = new mongoose.Schema({
   phone: { type: String },
   createdAt: { type: Date, default: Date.now },
   lastLoginAt: { type: Date, default: null },
+  emailVerified: { type: Boolean, default: false },
+  emailVerificationToken: { type: String },
+  emailVerificationTokenExpires: { type: Date },
 });
 
 // TV Schema

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a full-stack digital signage management system built with React, Express, and PostgreSQL. The application allows users to manage TV displays, content, and broadcasting operations through a web-based dashboard. It features user authentication, role-based access control, and real-time management of digital signage content across multiple TV displays.
+This is a full-stack digital signage management system built with React, Express, and MongoDB. The application allows users to manage TV displays, content, and broadcasting operations through a web-based dashboard. It features user authentication, role-based access control, and real-time management of digital signage content across multiple TV displays.
 
 ## System Architecture
 
@@ -24,14 +24,14 @@ This is a full-stack digital signage management system built with React, Express
 - **Development**: Hot reloading with Vite integration in development mode
 
 ### Database Architecture
-- **Database**: PostgreSQL with Drizzle ORM
+- **Database**: MongoDB with Drizzle ORM
 - **Schema**: Relational database with four main tables:
   - `users`: User management with role-based access (editor, manager, admin)
   - `tvs`: TV display management with MAC address tracking and status
   - `content`: Content management with image URLs and scheduling
   - `broadcasts`: Active broadcast tracking linking content to TVs
 - **Migrations**: Drizzle Kit for schema migrations
-- **Connection**: Neon Database serverless PostgreSQL
+- **Connection**: Neon Database serverless MOngoDB
 
 ## Key Components
 

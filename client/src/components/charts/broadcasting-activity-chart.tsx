@@ -57,10 +57,10 @@ export function BroadcastingActivityChart() {
     );
   }
 
-  const labels = activityData?.map((item: ActivityData) => item.date) || [];
-  const broadcastData = activityData?.map((item: ActivityData) => item.broadcasts) || [];
-  const contentData = activityData?.map((item: ActivityData) => item.content) || [];
-  const errorData = activityData?.map((item: ActivityData) => item.errors) || [];
+  const labels = (activityData as ActivityData[])?.map((item) => item.date) || [];
+  const broadcastData = (activityData as ActivityData[])?.map((item) => item.broadcasts) || [];
+  const contentData = (activityData as ActivityData[])?.map((item) => item.content) || [];
+  const errorData = (activityData as ActivityData[])?.map((item) => item.errors) || [];
 
   const chartData = {
     labels,
