@@ -7,7 +7,7 @@ export const emailTransporter = nodemailer.createTransport({
     secure: process.env.SMTP_SECURE === 'true',
     auth: {
         user: process.env.SMTP_USER || 'onlyleesin147@gmail.com',
-        pass: process.env.SMTP_PASSWORD || 'rmclpkgzzgrzbhhl'
+        pass: process.env.SMTP_PASSWORD || 'wdkpmuqxdvljbhes'
     }
 });
 

@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+// content-broadcast.tsx
+import { useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,7 +17,6 @@ export default function ContentBroadcast() {
     const [, setLocation] = useLocation();
     const { toast } = useToast();
     const queryClient = useQueryClient();
-    const [selectedContent, setSelectedContent] = useState<string | null>(null);
 
     // Fetch TV details
     const { data: tv, isLoading: isTvLoading } = useQuery({
@@ -38,12 +38,12 @@ export default function ContentBroadcast() {
 
     // Filter content that has this TV selected
     const availableContent = allContent.filter((content: any) =>
-        content.selectedTvs && content.selectedTvs.includes(tvId)
+        content.selectedTvs && content.selectedTvs.includes(tvId as string)
     );
 
     // Start broadcasting mutation
     const broadcastMutation = useMutation({
-        mutationFn: ({ contentId, tvIds }: { contentId: string; tvIds: string[] }) =>
+        mutationFn: ({ contentId, tvIds }: { contentId: string[]; tvIds: string[] }) =>
             apiRequest("POST", "/api/broadcast", { contentId, tvIds }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/tvs"] });
@@ -51,8 +51,7 @@ export default function ContentBroadcast() {
                 title: "Success",
                 description: "Broadcasting started successfully",
             });
-            // Navigate back to TV management
-            setTimeout(() => setLocation("/tvs"), 1000);
+            setTimeout(() => setLocation(`/display/${tvId}`), 1000); // Ensure tvId is valid
         },
         onError: (error) => {
             toast({
@@ -64,19 +63,20 @@ export default function ContentBroadcast() {
     });
 
     const handleStartBroadcast = () => {
-        if (!selectedContent) {
+        if (availableContent.length === 0) {
             toast({
                 title: "Error",
-                description: "Please select content to broadcast",
+                description: "No content available to broadcast",
                 variant: "destructive",
             });
+            setTimeout(() => setLocation(`/display/${tvId}`), 1000);
             return;
         }
 
-        // Use the tvId from URL params directly instead of tv.id
+        // Broadcast all available content IDs
         broadcastMutation.mutate({
-            contentId: selectedContent,
-            tvIds: [tvId]
+            contentId: availableContent.map((c: any) => c.id),
+            tvIds: [tvId as string]
         });
     };
 
@@ -103,7 +103,7 @@ export default function ContentBroadcast() {
                             Broadcast to {tv?.name || "TV"}
                         </h1>
                         <p className="text-muted-foreground">
-                            Select content to broadcast to this TV
+                            All available content will be broadcast to this TV
                         </p>
                     </div>
                     <Button
@@ -136,13 +136,7 @@ export default function ContentBroadcast() {
                     <>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                             {availableContent.map((content: any) => (
-                                <Card
-                                    key={content.id}
-                                    className={`cursor-pointer transition-all hover:shadow-md ${
-                                        selectedContent === content.id ? 'ring-2 ring-primary ring-offset-2' : ''
-                                    }`}
-                                    onClick={() => setSelectedContent(content.id)}
-                                >
+                                <Card key={content.id}>
                                     <CardHeader className="p-4 pb-2">
                                         <CardTitle className="text-lg">{content.title}</CardTitle>
                                         <CardDescription className="line-clamp-2">
@@ -180,7 +174,7 @@ export default function ContentBroadcast() {
                         <div className="flex justify-end">
                             <Button
                                 onClick={handleStartBroadcast}
-                                disabled={!selectedContent || broadcastMutation.isPending}
+                                disabled={availableContent.length === 0 || broadcastMutation.isPending}
                                 className="bg-green-600 hover:bg-green-700"
                             >
                                 <Play className="mr-2 h-4 w-4" />

@@ -33,12 +33,11 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
     defaultValues: {
       title: "",
       description: "",
-      imageUrl: "",
-
+      imageUrl: "", // always a string
       status: "draft",
       selectedTvs: [],
       createdById: user?.id || "",
-        duration: 15,
+      duration: 15,
     },
   });
 
@@ -49,13 +48,13 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
         form.reset({
           title: content.title || "",
           description: content.description || "",
-          imageUrl: content.imageUrl || "",
+          imageUrl: content.imageUrl ?? "", // always a string
           status: content.status || "draft",
           selectedTvs: content.selectedTvs || [],
           createdById: content.createdById || user?.id || "",
-            duration: content.duration || 15,
+          duration: content.duration ?? 15,
         });
-        setImagePreview(content.imageUrl || null);
+        setImagePreview(content.imageUrl ?? null);
       } else {
         form.reset({
           title: "",
@@ -64,6 +63,7 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
           status: "draft",
           selectedTvs: [],
           createdById: user?.id || "",
+          duration: 15,
         });
         setImagePreview(null);
       }
@@ -73,8 +73,8 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
   // Watch for image URL changes to update preview
   useEffect(() => {
     const subscription = form.watch((value, { name }) => {
-      if (name === "imageUrl" && value.imageUrl) {
-        setImagePreview(value.imageUrl as string);
+      if (name === "imageUrl") {
+        setImagePreview(value.imageUrl ? value.imageUrl : null);
       }
     });
     return () => subscription.unsubscribe();
@@ -229,9 +229,10 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
                             <Input
                               placeholder="Enter image URL"
                               {...field}
+                              value={field.value ?? ""} // always a string
                               onChange={(e) => {
                                 field.onChange(e);
-                                setImagePreview(e.target.value);
+                                setImagePreview(e.target.value || null);
                               }}
                               className="mb-2"
                             />
@@ -280,6 +281,7 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
                                     min="1"
                                     placeholder="Enter content duration in seconds"
                                     {...field}
+                                    value={field.value ?? 15}
                                     onChange={(e) => field.onChange(Number(e.target.value))}
                                 />
                             </FormControl>

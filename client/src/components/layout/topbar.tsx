@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { useLocation } from "wouter";
 
 interface TopBarProps {
   title: string;
@@ -17,6 +18,12 @@ interface TopBarProps {
 
 export function TopBar({ title, subtitle }: TopBarProps) {
   const { user, logout } = useAuth();
+  const [, setLocation] = useLocation();
+
+  const handleLogout = () => {
+    logout();
+    setLocation("/login");
+  };
 
   return (
     <header className="bg-background border-b border-border px-6 py-4">
@@ -51,7 +58,7 @@ export function TopBar({ title, subtitle }: TopBarProps) {
               <DropdownMenuItem>Profile</DropdownMenuItem>
               <DropdownMenuItem>Settings</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout}>
+              <DropdownMenuItem onClick={handleLogout}>
                 Log out
               </DropdownMenuItem>
             </DropdownMenuContent>

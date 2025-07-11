@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import {body} from "framer-motion/m";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -8,19 +9,39 @@ async function throwIfResNotOk(res: Response) {
 }
 
 export async function apiRequest(
-  method: string,
-  url: string,
-  data?: unknown | undefined,
-): Promise<Response> {
-  const res = await fetch(url, {
+    method: string,
+    url: string,
+    data?: any,
+    options: RequestInit = {}
+) {
+  const fetchOptions: RequestInit = {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+    ...options,
+  };
 
-  await throwIfResNotOk(res);
-  return res;
+  if (data) {
+    fetchOptions.body = JSON.stringify(data);
+  }
+
+  const response = await fetch(url, fetchOptions);
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    result = null;
+  }
+
+  if (!response.ok) {
+    const error = result?.message || response.statusText;
+    throw new Error(error);
+  }
+
+  return result;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

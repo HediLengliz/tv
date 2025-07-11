@@ -13,28 +13,29 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface UserModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  user?: any;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    user?: any;
 }
 
 export function UserModal({ open, onOpenChange, user }: UserModalProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+    const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
 
-  const form = useForm<InsertUser>({
-    resolver: zodResolver(insertUserSchema),
-    defaultValues: {
-      email: user?.email || "",
-      firstName: user?.firstName || "",
-      lastName: user?.lastName || "",
-      password: "",
-      role: user?.role || "editor",
-      status: user?.status || "pending",
-      phone: user?.phone || "",
-    },
-  });
+    const form = useForm<InsertUser>({
+        resolver: zodResolver(insertUserSchema),
+        defaultValues: {
+            email: user?.email || "",
+            firstName: user?.firstName || "",
+            lastName: user?.lastName || "",
+            password: "",
+            role: user?.role || "editor",
+            status: user?.status || "pending",
+            phone: user?.phone || "",
+        },
+    });
+
     const resendEmailMutation = useMutation({
         mutationFn: (email: string) =>
             apiRequest("POST", "/api/resend-verification-email", { email }),
@@ -43,7 +44,6 @@ export function UserModal({ open, onOpenChange, user }: UserModalProps) {
                 title: "Success",
                 description: "Verification email has been resent",
             });
-            console.log("Verification email resent successfully");
         },
         onError: (error) => {
             toast({
@@ -51,77 +51,75 @@ export function UserModal({ open, onOpenChange, user }: UserModalProps) {
                 description: error instanceof Error ? error.message : "Failed to resend verification email",
                 variant: "destructive",
             });
-            console.error("Failed to resend verification email:", error);
         },
     });
+
     const handleResendEmail = () => {
-        if (user?.email) {
-            resendEmailMutation.mutate(user.email);
+        const email = form.getValues("email");
+        if (email) {
+            resendEmailMutation.mutate(email);
         }
     };
 
-  const createMutation = useMutation({
-    mutationFn: async (data: InsertUser) => {
-      console.log(`Attempting to create user and send verification email to: ${data.email}`);
-      const response = await apiRequest("POST", "/api/users", data);
-      console.log(`User creation response:`, response);
-      return response;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    const createMutation = useMutation({
+        mutationFn: async (data: InsertUser) => {
+            // Send sendWelcomeEmail flag to backend if needed
+            const response = await apiRequest("POST", "/api/users", { ...data, sendWelcomeEmail });
+            return response;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+            toast({
+                title: "Success",
+                description: sendWelcomeEmail
+                    ? "User created successfully. Verification email has been sent."
+                    : "User created successfully.",
+            });
+            onOpenChange(false);
+            form.reset();
+        },
+        onError: (error) => {
+            toast({
+                title: "Error",
+                description: error instanceof Error ? error.message : "Failed to create user",
+                variant: "destructive",
+            });
+        },
+    });
 
-      const emailMessage = sendWelcomeEmail
-          ? "User created successfully. Verification email has been sent."
-          : "User created successfully.";
+    const updateMutation = useMutation({
+        mutationFn: (data: InsertUser) => {
+            // Do not send password on update if empty
+            const { password, ...rest } = data;
+            return apiRequest("PUT", `/api/users/${user.id}`, password ? data : rest);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+            toast({
+                title: "Success",
+                description: "User updated successfully",
+            });
+            onOpenChange(false);
+            form.reset();
+        },
+        onError: (error) => {
+            toast({
+                title: "Error",
+                description: error instanceof Error ? error.message : "Failed to update user",
+                variant: "destructive",
+            });
+        },
+    });
 
-      console.log(emailMessage);
+    const onSubmit = (data: InsertUser) => {
+        if (user) {
+            updateMutation.mutate(data);
+        } else {
+            createMutation.mutate(data);
+        }
+    };
 
-      toast({
-        title: "Success",
-        description: emailMessage,
-      });
-      onOpenChange(false);
-      form.reset();
-    },
-    onError: (error) => {
-      console.error("Failed to create user or send verification email:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create user",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (data: InsertUser) => apiRequest("PUT", `/api/users/${user.id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({
-        title: "Success",
-        description: "User updated successfully",
-      });
-      onOpenChange(false);
-      form.reset();
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update user",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const onSubmit = (data: InsertUser) => {
-    if (user) {
-      updateMutation.mutate(data);
-    } else {
-      createMutation.mutate(data);
-    }
-  };
-
-  const isLoading = createMutation.isPending || updateMutation.isPending;
+    const isLoading = createMutation.isPending || updateMutation.isPending;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -129,7 +127,9 @@ export function UserModal({ open, onOpenChange, user }: UserModalProps) {
                 <DialogHeader>
                     <DialogTitle>{user ? "Edit User" : "Add New User"}</DialogTitle>
                     <DialogDescription>
-                        {user ? "Update user information and permissions." : "Create a new user account with appropriate permissions."}
+                        {user
+                            ? "Update user information and permissions."
+                            : "Create a new user account with appropriate permissions."}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -275,13 +275,7 @@ export function UserModal({ open, onOpenChange, user }: UserModalProps) {
                                     variant="outline"
                                     size="sm"
                                     className="ml-7 mt-1"
-                                    onClick={() => {
-                                        const email = form.getValues("email");
-                                        if (email) {
-                                            console.log("Resending verification email to:", email);
-                                            resendEmailMutation.mutate(email);
-                                        }
-                                    }}
+                                    onClick={handleResendEmail}
                                     disabled={resendEmailMutation.isPending}
                                 >
                                     {resendEmailMutation.isPending ? "Sending..." : "Resend verification email"}

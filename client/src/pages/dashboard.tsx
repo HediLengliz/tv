@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tv, PlayCircle, Radio, Users } from "lucide-react";
-import { getTimeAgo } from "@/lib/utils";
+import { useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
 import { BroadcastingActivityChart } from "@/components/charts/broadcasting-activity-chart";
 
 interface Stats {
@@ -17,6 +17,7 @@ interface Activity {
   type: string;
   message: string;
   time: string;
+  createdAt: string;
 }
 
 export default function Dashboard() {
@@ -24,9 +25,41 @@ export default function Dashboard() {
     queryKey: ["/api/stats"],
   });
 
-  const { data: recentActivity = [] } = useQuery<Activity[]>({
+  const { data: recentActivity = [], isLoading } = useQuery<Activity[]>({
     queryKey: ["/api/activity"],
+    queryFn: async () => {
+      const res = await fetch("/api/activity");
+      if (!res.ok) throw new Error("Failed to fetch activity");
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+    refetchOnWindowFocus: false,
+    refetchInterval: 30000, // Poll every 30 seconds
   });
+
+  const [activity, setActivity] = useState<Activity[]>(recentActivity);
+  const socketRef = useRef<any>(null);
+
+  useEffect(() => {
+    setActivity(recentActivity);
+  }, [recentActivity]);
+
+  useEffect(() => {
+    socketRef.current = io("http://localhost:5000"); // Use your backend URL
+
+    socketRef.current.on("activity", (newActivities: Activity[]) => {
+      setActivity((prev) => {
+        const updated = [...newActivities, ...prev].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        return updated.slice(0, 10); // Keep last 10 activities
+      });
+    });
+
+    return () => {
+      socketRef.current.disconnect();
+    };
+  }, []);
 
   const statsCards = [
     {
@@ -61,16 +94,16 @@ export default function Dashboard() {
 
   const getActivityColor = (type: string) => {
     switch (type) {
-      case 'success':
-        return 'bg-green-400';
-      case 'info':
-        return 'bg-blue-400';
-      case 'warning':
-        return 'bg-yellow-400';
-      case 'error':
-        return 'bg-red-400';
+      case "success":
+        return "bg-green-400";
+      case "info":
+        return "bg-blue-400";
+      case "warning":
+        return "bg-yellow-400";
+      case "error":
+        return "bg-red-400";
       default:
-        return 'bg-gray-400';
+        return "bg-gray-400";
     }
   };
 
@@ -82,15 +115,13 @@ export default function Dashboard() {
             const Icon = stat.icon;
             return (
                 <Card key={stat.title}>
-                  <CardContent className="p-6">
-                    <div className="flex items-center">
-                      <div className={`p-2 ${stat.bgColor} rounded-lg`}>
-                        <Icon className={`h-5 w-5 ${stat.iconColor}`} />
-                      </div>
-                      <div className="ml-4">
-                        <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                        <p className="text-2xl font-semibold">{stat.value}</p>
-                      </div>
+                  <CardContent className="p-6 flex items-center space-x-4">
+                    <div className={`p-3 rounded-full ${stat.bgColor}`}>
+                      <Icon className={`w-7 h-7 ${stat.iconColor}`} />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">{stat.value}</div>
+                      <div className="text-sm text-gray-500">{stat.title}</div>
                     </div>
                   </CardContent>
                 </Card>
@@ -111,17 +142,23 @@ export default function Dashboard() {
               <CardTitle>Recent Activity</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-center space-x-3">
-                      <div className={`h-2 w-2 ${getActivityColor(activity.type)} rounded-full`}></div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{activity.message}</p>
-                        <p className="text-xs text-muted-foreground">{activity.time}</p>
-                      </div>
-                    </div>
-                ))}
-              </div>
+              {isLoading ? (
+                  <div className="text-gray-400 text-sm">Loading activities...</div>
+              ) : activity.length === 0 ? (
+                  <div className="text-gray-400 text-sm">No recent activity.</div>
+              ) : (
+                  <div className="space-y-4">
+                    {activity.map((activity) => (
+                        <div key={activity.id} className="flex items-center space-x-3">
+                          <div className={`h-2 w-2 ${getActivityColor(activity.type)} rounded-full`}></div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{activity.message}</p>
+                            <p className="text-xs text-muted-foreground">{activity.time}</p>
+                          </div>
+                        </div>
+                    ))}
+                  </div>
+              )}
             </CardContent>
           </Card>
         </div>

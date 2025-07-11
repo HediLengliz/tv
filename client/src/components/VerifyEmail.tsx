@@ -29,7 +29,7 @@ const VerifyEmail = () => {
                 // Use the GET endpoint for verification
                 await apiRequest('GET', `/api/verify-email?token=${token}`);
                 setStatus('success');
-                setMessage('Your email has been verified successfully!');
+                setMessage('Your email has been verified successfully! Your account is now active.');
 
                 // Redirect to dashboard after 3 seconds
                 setTimeout(() => {

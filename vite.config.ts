@@ -29,12 +29,18 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    port: 3000,
+    strictPort: true,
+    host: "localhost",
+    hmr: { host: "localhost", port: 3000 },
     proxy: {
       '/api': 'http://localhost:5000',
+      '/socket.io': {
+        target: 'http://localhost:5000',
+        ws: true,
+        changeOrigin: true,
+      },
     },
-    fs: {
-      strict: true,
-      deny: ["**/.*"],
-    },
+    fs: { strict: true, deny: ["**/.*"] },
   },
 });

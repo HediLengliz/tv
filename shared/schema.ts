@@ -4,7 +4,7 @@ import { z } from "zod";
 export interface User {
   emailVerificationToken: string;
   emailVerificationTokenExpires: Date;
-  emailVerified: { type: Boolean, default: false },
+  emailVerified: boolean; // <-- fix type
   _id?: string;
   id?: string;
   email: string;
@@ -16,6 +16,8 @@ export interface User {
   phone?: string;
   createdAt: Date;
   lastLoginAt?: Date | null;
+  passwordResetToken?: string;
+  passwordResetTokenExpires?: Date;
 }
 
 export interface TV {
@@ -39,6 +41,7 @@ export interface Content {
   selectedTvs: string[];
   createdAt: Date;
   createdById: string;
+  videoUrl?: string; // <-- made optional
   duration?: number;
 }
 
@@ -99,6 +102,7 @@ export const insertContentSchema = z.object({
   selectedTvs: z.array(z.string()).default([]),
   createdById: z.string().min(1, "Creator ID is required"),
   duration: z.number().min(1, "Duration must be at least 1 second").default(15),
+  videoUrl: z.string().optional(), // <-- add this line to make videoUrl optional in Zod schema
 });
 
 export const insertBroadcastSchema = z.object({

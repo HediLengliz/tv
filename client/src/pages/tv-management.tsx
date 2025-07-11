@@ -10,18 +10,40 @@ import { TvModal } from "@/components/tv/tv-modal";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatDate, getStatusColor } from "@/lib/utils";
-import {Plus, Search, Filter, Radio, Eye, Edit, Trash2, Play} from "lucide-react";
+import {
+  Plus,
+  Search,
+  Filter,
+  Radio,
+  Eye,
+  Edit,
+  Trash2,
+  Play,
+  StopCircle,
+  PauseCircle,
+  PlayCircle,
+} from "lucide-react";
 import { useLocation } from "wouter";
+
+interface Tv {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  macAddress: string;
+  createdAt: Date;
+  createdBy: string;
+}
 
 export default function TvManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedTv, setSelectedTv] = useState(null);
+  const [selectedTv, setSelectedTv] = useState<Tv | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: tvs = [], isLoading } = useQuery({
+  const { data: tvs = [], isLoading } = useQuery<Tv[]>({
     queryKey: ["/api/tvs", searchQuery, statusFilter],
     queryFn: async () => {
       let url = "/api/tvs";
@@ -38,12 +60,11 @@ export default function TvManagement() {
   const [, setLocation] = useLocation();
 
   const handleBroadcast = (tvId: string) => {
-    // Navigate to the broadcast page for this TV
     setLocation(`/broadcast/${tvId}`);
   };
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/tvs/${id}`),
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/tvs/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tvs"] });
       toast({
@@ -60,45 +81,25 @@ export default function TvManagement() {
     },
   });
 
-  const broadcastMutation = useMutation({
-    mutationFn: ({ contentId, tvIds }: { contentId: number; tvIds: number[] }) =>
-        apiRequest("POST", "/api/broadcast", { contentId, tvIds }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tvs"] });
-      toast({
-        title: "Success",
-        description: "Broadcasting started successfully",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to start broadcasting",
-        variant: "destructive",
-      });
-    },
-  });
-
-
-  // --- Add this mutation for creating a TV ---
   const createMutation = useMutation({
     mutationFn: (tvData: any) => apiRequest("POST", "/api/tvs", tvData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tvs"] });
       toast({
         title: "Success",
-        description: "TV added successfully",
+        description: "TV created successfully",
       });
       closeModal();
     },
     onError: (error) => {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add TV",
+        description: error instanceof Error ? error.message : "Failed to create TV",
         variant: "destructive",
       });
     },
   });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, tvData }: { id: string; tvData: any }) =>
         apiRequest("PUT", `/api/tvs/${id}`, tvData),
@@ -119,23 +120,22 @@ export default function TvManagement() {
     },
   });
 
-  const handleEdit = (tv: any) => {
+  const handleEdit = (tv: Tv) => {
     setSelectedTv(tv);
     setIsModalOpen(true);
   };
 
-
   const handleDelete = (id: string) => {
+    if (!id || !id.trim()) {
+      toast({
+        title: "Error",
+        description: "Invalid TV ID",
+        variant: "destructive",
+      });
+      return;
+    }
     deleteMutation.mutate(id);
-
   };
-
-  // const handleBroadcast = (tvId: number) => {
-  //   toast({
-  //     title: "Broadcasting",
-  //     description: "Content selection modal would open here",
-  //   });
-  // };
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -150,11 +150,9 @@ export default function TvManagement() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-          </div>
+          <div></div>
           <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add New TV
+            <Plus className="mr-2 h-4 w-4" /> Add New TV
           </Button>
         </div>
 
@@ -204,8 +202,7 @@ export default function TvManagement() {
               </div>
               <div className="flex items-end">
                 <Button variant="outline" className="w-full">
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filter
+                  <Filter className="mr-2 h-4 w-4" /> Filter
                 </Button>
               </div>
             </div>
@@ -226,15 +223,13 @@ export default function TvManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tvs.map((tv: {
-                  createdBy: any;
-                  id: string; status: string;name:string;description:string;macAddress:string;createdAt:Date;}) => (
+                {tvs.map((tv) => (
                     <TableRow key={tv.id} className="hover:bg-muted/50">
                       <TableCell>
                         <div>
                           <div className="font-medium">{tv.name}</div>
                           <div className="text-sm text-muted-foreground">{tv.description}</div>
-                          <div className="text-xs text-muted-foreground mt-1">ID: TV-{tv.id.toString().padStart(3, '0')}</div>
+                          <div className="text-xs text-muted-foreground mt-1">ID: TV-{tv.id.toString().padStart(3, "0")}</div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -258,8 +253,7 @@ export default function TvManagement() {
                               onClick={() => handleBroadcast(tv.id)}
                               className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200"
                           >
-                            <Play className="h-4 w-4 mr-1" />
-                            Broadcast
+                            <Play className="h-4 w-4 mr-1" /> Broadcast
                           </Button>
                           <Button variant="ghost" size="sm">
                             <Eye className="h-4 w-4" />

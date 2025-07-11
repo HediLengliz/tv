@@ -9,11 +9,27 @@ export function generateVerificationToken(userId: string): string {
         { expiresIn: '24h' }
     );
 }
+// export function generateVerificationTokenPass(userId: string, purpose: string = 'email-verification'): string {
+//     return jwt.sign(
+//         { userId, purpose },
+//         JWT_SECRET,
+//         { expiresIn: '24h' }
+//     );
+// }
 
-export function verifyToken(token: string): any {
+// export function verifyToken(token: string): any {
+//     try {
+//         return jwt.verify(token, JWT_SECRET);
+//     } catch (error) {
+//         return null;
+//     }
+// }
+export function verifyToken(token: string) {
     try {
-        return jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET);
+        return decoded;
     } catch (error) {
+        console.error("Token verification failed:", error);
         return null;
     }
 }

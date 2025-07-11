@@ -1,6 +1,5 @@
-import mongoose from 'mongoose';
 import {boolean, string} from "zod";
-
+import mongoose, { Schema } from 'mongoose';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tv-content-manager';
 
 export async function connectToDatabase() {
@@ -12,7 +11,12 @@ export async function connectToDatabase() {
     process.exit(1);
   }
 }
-
+const activitySchema = new mongoose.Schema({
+  type: { type: String, required: true },      // e.g. success, info, warning, error
+  message: { type: String, required: true },   // Activity description
+  time: { type: String, required: true },      // e.g. "just now", "2 minutes ago"
+  createdAt: { type: Date, default: Date.now } // For sorting
+});
 // User Schema
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
@@ -24,9 +28,11 @@ const userSchema = new mongoose.Schema({
   phone: { type: String },
   createdAt: { type: Date, default: Date.now },
   lastLoginAt: { type: Date, default: null },
-  emailVerified: { type: Boolean, default: false },
+  emailVerified: { type: Boolean, default: false }, // <-- fix type
   emailVerificationToken: { type: String },
   emailVerificationTokenExpires: { type: Date },
+  passwordResetToken: { type: String , default:""},
+  passwordResetTokenExpires: { type: Date , default:null},
 });
 
 // TV Schema
@@ -44,17 +50,19 @@ const contentSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String },
   imageUrl: { type: String },
+  videoUrl: { type: String }, // <-- removed required: true
   status: { type: String, enum: ['draft', 'active', 'scheduled', 'archived'], default: 'draft' },
   selectedTvs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'TV' }],
   createdAt: { type: Date, default: Date.now },
   createdById: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  duration: { type: Number, default: 15 }, // <-- add this line
 });
 
 // Broadcast Schema
 const broadcastSchema = new mongoose.Schema({
-  contentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Content', required: true },
+  contentId: [{ type: Schema.Types.ObjectId, ref: 'Content', required: true }],
   tvId: { type: mongoose.Schema.Types.ObjectId, ref: 'TV', required: true },
-  status: { type: String, enum: ['active', 'stopped', 'error'], default: 'active' },
+  status: { type: String, enum: ['active', 'stopped', 'error', 'paused'], default: 'active' }, // <-- add 'paused'
   startedAt: { type: Date, default: Date.now },
   stoppedAt: { type: Date, default: null },
 });
@@ -84,3 +92,4 @@ export const ContentModel = mongoose.model('Content', contentSchema);
 export const BroadcastModel = mongoose.model('Broadcast', broadcastSchema);
 export const NotificationModel = mongoose.model('Notification', notificationSchema);
 export const BroadcastingActivityModel = mongoose.model('BroadcastingActivity', broadcastingActivitySchema);
+export const ActivityModel = mongoose.model('Activity', activitySchema);

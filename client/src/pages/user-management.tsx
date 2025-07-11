@@ -172,6 +172,27 @@ export default function UserManagement() {
                       </Badge>
                     </div>
                     <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Account Status:</span>
+                      <Badge className={getStatusColor(user.status)}>
+                        {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                      </Badge>
+                    </div>
+                    {/* Show activation button if email is verified but status is pending */}
+                    {user.emailVerified && user.status === "pending" && (
+                      <div className="mb-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-green-700 border-green-300 hover:bg-green-100 mb-3"
+                          onClick={() => handleStatusChange(user.id!, "active")}
+                          disabled={updateStatusMutation.isPending}
+                        >
+                          {updateStatusMutation.isPending ? "Updating..." : "Activate user"}
+                        </Button>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Last Login:</span>
                       <span className="text-sm">
                     {user.lastLoginAt ? getTimeAgo(user.lastLoginAt) : "Never"}
