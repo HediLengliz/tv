@@ -28,5 +28,6 @@ jobs:
       - name: Push to main branch
         uses: ad-m/github-push-action@v0.8.0
         with:
+          github_token: ${{ secrets.screen_sharing }}
           branch: main
           force: true 
