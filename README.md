@@ -156,7 +156,7 @@ Vite
 <img width="1906" height="798" alt="meca" src="https://github.com/user-attachments/assets/04921818-1077-4d9d-9eda-0ef5fb7fa9cf" />
 <img width="1835" height="815" alt="aaaave" src="https://github.com/user-attachments/assets/df7e0cb8-03f8-4839-82cf-59527de7cf77" />
 
-<p align="center">
-  <img src="https://i.imgflip.com/a02pfn.gif" alt="Demo of the app">
-</p>
+https://github.com/user-attachments/assets/32573d0b-fc56-46ab-bb34-8bc69e19a4c3
+
+
 
