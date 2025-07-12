@@ -26,14 +26,31 @@ import { emailTransporter, getVerificationEmailTemplate } from './email.js';
 import { generateVerificationToken, verifyToken } from './utils/token.js';
 import mongoose from "mongoose";
 import { JwtPayload } from "jsonwebtoken";
-
+interface AnalyticsData {
+  date: string;
+  tvs: number;
+  content: number;
+  users: number;
+  tvStatuses: Record<string, number>;
+  contentStatuses: Record<string, number>;
+  userStatuses: Record<string, number>;
+}
+interface StatusCounts {
+  [key: string]: number;
+}
 function isJwtPayload(payload: any): payload is JwtPayload & { purpose?: string; userId?: string } {
   return typeof payload === "object" && payload !== null;
 }
 
 export class MongoStorage {
   constructor() {
-    this.initializeDatabase();
+    this.initializeDatabase().then(r => {
+      console.log("Database initialized successfully");
+    }).catch(error => {
+        console.error("Error initializing database:", error);
+    }
+    );
+
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -277,7 +294,7 @@ export class MongoStorage {
     let update = { ...updateData };
     if (updateData.selectedTvs) {
       update.selectedTvs = updateData.selectedTvs.map(tvId =>
-          new mongoose.Types.ObjectId(tvId)
+          new mongoose.Types.ObjectId(tvId).toString()
       );
     }
     const content = await ContentModel.findByIdAndUpdate(id, update, { new: true });
@@ -314,21 +331,11 @@ export class MongoStorage {
     return broadcasts.map(broadcast => this.transformBroadcast(broadcast));
   }
 
-  async createBroadcast(contentId: string[], tvIds: string[]): Promise<void> {
-    try {
-      const broadcasts = tvIds.flatMap((tvId) =>
-          contentId.map((cid) => ({
-            contentId: cid,
-            tvId,
-            status: 'active',
-            startedAt: new Date(),
-          }))
-      );
-      await BroadcastModel.create(broadcasts);
-    } catch (error) {
-      console.error('Error creating broadcast:', error);
-      throw error;
-    }
+  async createBroadcast(insertBroadcast: InsertBroadcast): Promise<Broadcast> {
+    const broadcast = await BroadcastModel.create(insertBroadcast);
+    const today = new Date().toISOString().split('T')[0];
+    await this.updateBroadcastingActivity(today, { broadcasts: 1 });
+    return this.transformBroadcast(broadcast);
   }
 
   async updateBroadcast(id: string, updateData: Partial<InsertBroadcast>): Promise<Broadcast | null> {
@@ -351,29 +358,87 @@ export class MongoStorage {
     return broadcasts.map(broadcast => this.transformBroadcast(broadcast));
   }
 
-  async getBroadcastingActivity(timeRange: string): Promise<BroadcastingActivity[]> {
+  async getBroadcastingActivity(timeRange: string): Promise<AnalyticsData[]> {
     let days = 7;
     switch (timeRange) {
       case "24h": days = 1; break;
       case "30d": days = 30; break;
       case "90d": days = 90; break;
-      case "365d": days = 365; break;
       default: days = 7;
     }
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     const startDateString = startDate.toISOString().split('T')[0];
-    const activities = await BroadcastingActivityModel.find({
-      date: { $gte: startDateString }
+
+    // Aggregate data by date
+    const tvsByDate = await TVModel.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          total: { $sum: 1 },
+          statuses: { $push: "$status" },
+        },
+      },
+    ]);
+
+    const contentByDate = await ContentModel.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          total: { $sum: 1 },
+          statuses: { $push: "$status" },
+        },
+      },
+    ]);
+
+    const usersByDate = await UserModel.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          total: { $sum: 1 },
+          statuses: { $push: "$status" },
+        },
+      },
+    ]);
+
+    // Combine data
+    const dates = Array.from(new Set([
+      ...tvsByDate.map((t) => t._id),
+      ...contentByDate.map((c) => c._id),
+      ...usersByDate.map((u) => u._id),
+    ])).sort();
+
+    return dates.map((date) => {
+      const tv = tvsByDate.find((t) => t._id === date) || { total: 0, statuses: [] };
+      const content = contentByDate.find((c) => c._id === date) || { total: 0, statuses: [] };
+      const user = usersByDate.find((u) => u._id === date) || { total: 0, statuses: [] };
+
+      const tvStatuses = tv.statuses.reduce((acc: StatusCounts, status: string) => {
+        acc[status as keyof StatusCounts] = (acc[status as keyof StatusCounts] || 0) + 1;
+        return acc;
+      }, {});
+      const contentStatuses = content.statuses.reduce((acc: StatusCounts, status: string) => {
+        acc[status as keyof StatusCounts] = (acc[status as keyof StatusCounts] || 0) + 1;
+        return acc;
+      }, {});
+      const userStatuses = user.statuses.reduce((acc: StatusCounts, status: string) => {
+        acc[status as keyof StatusCounts] = (acc[status as keyof StatusCounts] || 0) + 1;
+        return acc;
+      }, {});
+
+      return {
+        date,
+        tvs: tv.total,
+        content: content.total,
+        users: user.total,
+        tvStatuses,
+        contentStatuses,
+        userStatuses,
+      };
     });
-    return activities.map(activity => ({
-      id: activity._id.toString(),
-      date: activity.date,
-      broadcasts: activity.broadcasts,
-      content: activity.content,
-      errors: activity.errors,
-      createdAt: activity.createdAt
-    }));
   }
 
   async updateBroadcastingActivity(date: string, data: Partial<BroadcastingActivity>): Promise<void> {

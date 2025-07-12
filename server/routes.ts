@@ -429,7 +429,7 @@ export async function registerRoutes(app: Express, io: SocketIOServer): Promise<
       const activityData = await storage.getBroadcastingActivity(timeRange);
       res.json(activityData);
     } catch (error) {
-      console.error('Broadcasting activity error:', error);
+      console.error('Analytics activity error:', error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

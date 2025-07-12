@@ -7,16 +7,17 @@ import {
   Tooltip,
   Legend,
   BarElement,
-  ArcElement, Filler,
+  ArcElement,
+  Filler,
 } from 'chart.js';
-import { Line, Pie, Doughnut } from 'react-chartjs-2';
+import { Line, Pie, Doughnut, Bar } from 'react-chartjs-2';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useState } from 'react';
-import { Chart as ChartJS, registerables } from "chart.js";
-import { Bar } from "react-chartjs-2";
+import { Chart as ChartJS } from 'chart.js';
+
 ChartJS.register(
     CategoryScale,
     LinearScale,
@@ -30,13 +31,6 @@ ChartJS.register(
     Filler
 );
 
-interface BroadcastingActivityData {
-  date: string;
-  broadcasts: number;
-  content: number;
-  errors: number;
-}
-
 interface ActivityData {
   id: string;
   type: string;
@@ -45,20 +39,43 @@ interface ActivityData {
   createdAt: string;
 }
 
+interface StatusCounts {
+  online?: number;
+  offline?: number;
+  broadcasting?: number;
+  maintenance?: number;
+  draft?: number;
+  active?: number;
+  scheduled?: number;
+  archived?: number;
+  pending?: number;
+  inactive?: number;
+}
+
+interface AnalyticsData {
+  date: string;
+  tvs: number;
+  content: number;
+  users: number;
+  tvStatuses: StatusCounts;
+  contentStatuses: StatusCounts;
+  userStatuses: StatusCounts;
+}
+
 export function BroadcastingActivityChart() {
   const [chartType, setChartType] = useState<'line' | 'bar' | 'pie' | 'doughnut'>('line');
   const [timeRange, setTimeRange] = useState('7d');
-  const [dataSource, setDataSource] = useState<'broadcasting' | 'activity'>('broadcasting');
+  const [dataSource, setDataSource] = useState<'analytics' | 'activity'>('analytics');
 
-  const { data: broadcastingData, isLoading: isBroadcastingLoading } = useQuery<BroadcastingActivityData[]>({
+  const { data: analyticsData, isLoading: isAnalyticsLoading } = useQuery<AnalyticsData[]>({
     queryKey: ['/api/analytics/broadcasting-activity', timeRange],
     queryFn: async () => {
       const res = await fetch(`/api/analytics/broadcasting-activity?timeRange=${timeRange}`);
-      if (!res.ok) throw new Error('Failed to fetch broadcasting activity data');
+      if (!res.ok) throw new Error('Failed to fetch analytics data');
       return res.json();
     },
     refetchInterval: 15000,
-    enabled: dataSource === 'broadcasting',
+    enabled: dataSource === 'analytics',
   });
 
   const { data: activityData, isLoading: isActivityLoading } = useQuery<ActivityData[]>({
@@ -72,13 +89,13 @@ export function BroadcastingActivityChart() {
     enabled: dataSource === 'activity',
   });
 
-  if (isBroadcastingLoading || isActivityLoading) {
+  if (isAnalyticsLoading || isActivityLoading) {
     return (
         <Card>
           <CardHeader>
-            <CardTitle>{dataSource === 'broadcasting' ? 'Broadcasting Activity' : 'Recent Activity'}</CardTitle>
+            <CardTitle>{dataSource === 'analytics' ? 'TVs, Content, and Users Analytics' : 'Recent Activity'}</CardTitle>
             <CardDescription>
-              {dataSource === 'broadcasting' ? 'Track broadcast performance over time' : 'Track recent activities by type'}
+              {dataSource === 'analytics' ? 'Track TVs, content, and users with statuses over time' : 'Track recent activities by type'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -88,14 +105,33 @@ export function BroadcastingActivityChart() {
     );
   }
 
-  // Process BroadcastingActivity data
-  const broadcastingLabels = broadcastingData?.map((item) => item.date) || [];
-  const broadcastData = broadcastingData?.map((item) => item.broadcasts) || [];
-  const contentData = broadcastingData?.map((item) => item.content) || [];
-  const errorData = broadcastingData?.map((item) => item.errors) || [];
+  // Process Analytics Data
+  const analyticsLabels = analyticsData?.map((item) => item.date) || [];
+  const tvData = analyticsData?.map((item) => item.tvs) || [];
+  const contentData = analyticsData?.map((item) => item.content) || [];
+  const userData = analyticsData?.map((item) => item.users) || [];
 
-  // Process Activity data (group by date and type)
-  const activityLabels = Array.from(new Set(activityData?.map((item) => new Date(item.createdAt).toISOString().split('T')[0]))).sort();  const activityByDateAndType = activityLabels.map((date) => {
+  const tvStatusData = {
+    online: analyticsData?.map((item) => item.tvStatuses.online || 0) || [],
+    offline: analyticsData?.map((item) => item.tvStatuses.offline || 0) || [],
+    broadcasting: analyticsData?.map((item) => item.tvStatuses.broadcasting || 0) || [],
+    maintenance: analyticsData?.map((item) => item.tvStatuses.maintenance || 0) || [],
+  };
+  const contentStatusData = {
+    draft: analyticsData?.map((item) => item.contentStatuses.draft || 0) || [],
+    active: analyticsData?.map((item) => item.contentStatuses.active || 0) || [],
+    scheduled: analyticsData?.map((item) => item.contentStatuses.scheduled || 0) || [],
+    archived: analyticsData?.map((item) => item.contentStatuses.archived || 0) || [],
+  };
+  const userStatusData = {
+    pending: analyticsData?.map((item) => item.userStatuses.pending || 0) || [],
+    active: analyticsData?.map((item) => item.userStatuses.active || 0) || [],
+    inactive: analyticsData?.map((item) => item.userStatuses.inactive || 0) || [],
+  };
+
+  // Process Activity Data
+  const activityLabels = Array.from(new Set(activityData?.map((item) => new Date(item.createdAt).toISOString().split('T')[0]))).sort();
+  const activityByDateAndType = activityLabels.map((date) => {
     const activitiesOnDate = activityData?.filter((item) => new Date(item.createdAt).toISOString().split('T')[0] === date) || [];
     return {
       date,
@@ -106,56 +142,41 @@ export function BroadcastingActivityChart() {
     };
   });
 
-  // For Pie/Doughnut: sum totals
-  const totalBroadcasts = broadcastData.reduce((a, b) => a + b, 0);
+  // Pie/Doughnut Totals
+  const totalTvs = tvData.reduce((a, b) => a + b, 0);
   const totalContent = contentData.reduce((a, b) => a + b, 0);
-  const totalErrors = errorData.reduce((a, b) => a + b, 0);
-
+  const totalUsers = userData.reduce((a, b) => a + b, 0);
   const totalSuccess = activityByDateAndType.reduce((a, b) => a + b.success, 0);
   const totalInfo = activityByDateAndType.reduce((a, b) => a + b.info, 0);
   const totalWarning = activityByDateAndType.reduce((a, b) => a + b.warning, 0);
-  const totalActivityErrors = activityByDateAndType.reduce((a, b) => a + b.error, 0);
+  const totalErrors = activityByDateAndType.reduce((a, b) => a + b.error, 0);
 
-  const broadcastingPieData = {
-    labels: ['Broadcasts', 'Content', 'Errors'],
-    datasets: [
-      {
-        data: [totalBroadcasts, totalContent, totalErrors],
-        backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(255, 99, 132, 0.7)', 'rgba(255, 205, 86, 0.7)'],
-        borderColor: ['rgb(75, 192, 192)', 'rgb(255, 99, 132)', 'rgb(255, 205, 86)'],
-        borderWidth: 2,
-      },
-    ],
+  const analyticsPieData = {
+    labels: ['TVs', 'Content', 'Users'],
+    datasets: [{
+      data: [totalTvs, totalContent, totalUsers],
+      backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(255, 99, 132, 0.7)', 'rgba(153, 102, 255, 0.7)'],
+      borderColor: ['rgb(75, 192, 192)', 'rgb(255, 99, 132)', 'rgb(153, 102, 255)'],
+      borderWidth: 2,
+    }],
   };
 
   const activityPieData = {
     labels: ['Success', 'Info', 'Warning', 'Errors'],
-    datasets: [
-      {
-        data: [totalSuccess, totalInfo, totalWarning, totalActivityErrors],
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.7)', // Green for success
-          'rgba(59, 130, 246, 0.7)', // Blue for info
-          'rgba(234, 179, 8, 0.7)', // Yellow for warning
-          'rgba(239, 68, 68, 0.7)', // Red for error
-        ],
-        borderColor: [
-          'rgb(34, 197, 94)',
-          'rgb(59, 130, 246)',
-          'rgb(234, 179, 8)',
-          'rgb(239, 68, 68)',
-        ],
-        borderWidth: 2,
-      },
-    ],
+    datasets: [{
+      data: [totalSuccess, totalInfo, totalWarning, totalErrors],
+      backgroundColor: ['rgba(34, 197, 94, 0.7)', 'rgba(59, 130, 246, 0.7)', 'rgba(234, 179, 8, 0.7)', 'rgba(239, 68, 68, 0.7)'],
+      borderColor: ['rgb(34, 197, 94)', 'rgb(59, 130, 246)', 'rgb(234, 179, 8)', 'rgb(239, 68, 68)'],
+      borderWidth: 2,
+    }],
   };
 
-  const broadcastingChartData = {
-    labels: broadcastingLabels,
+  const analyticsChartData = {
+    labels: analyticsLabels,
     datasets: [
       {
-        label: 'Active Broadcasts',
-        data: broadcastData,
+        label: 'Total TVs',
+        data: tvData,
         borderColor: 'rgb(75, 192, 192)',
         backgroundColor: 'rgba(75, 192, 192, 0.2)',
         tension: 0.3,
@@ -164,7 +185,25 @@ export function BroadcastingActivityChart() {
         pointHoverRadius: 6,
       },
       {
-        label: 'Content Items',
+        label: 'Online TVs',
+        data: tvStatusData.online,
+        borderColor: 'rgba(75, 192, 192, 0.5)',
+        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+        tension: 0.3,
+        fill: true,
+        hidden: true,
+      },
+      {
+        label: 'Broadcasting TVs',
+        data: tvStatusData.broadcasting,
+        borderColor: 'rgba(75, 192, 192, 0.7)',
+        backgroundColor: 'rgba(75, 192, 192, 0.15)',
+        tension: 0.3,
+        fill: true,
+        hidden: true,
+      },
+      {
+        label: 'Total Content',
         data: contentData,
         borderColor: 'rgb(255, 99, 132)',
         backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -174,14 +213,32 @@ export function BroadcastingActivityChart() {
         pointHoverRadius: 6,
       },
       {
-        label: 'Errors',
-        data: errorData,
-        borderColor: 'rgb(255, 205, 86)',
-        backgroundColor: 'rgba(255, 205, 86, 0.2)',
+        label: 'Active Content',
+        data: contentStatusData.active,
+        borderColor: 'rgba(255, 99, 132, 0.5)',
+        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+        tension: 0.3,
+        fill: true,
+        hidden: true,
+      },
+      {
+        label: 'Total Users',
+        data: userData,
+        borderColor: 'rgb(153, 102, 255)',
+        backgroundColor: 'rgba(153, 102, 255, 0.2)',
         tension: 0.3,
         fill: true,
         pointRadius: 4,
         pointHoverRadius: 6,
+      },
+      {
+        label: 'Active Users',
+        data: userStatusData.active,
+        borderColor: 'rgba(153, 102, 255, 0.5)',
+        backgroundColor: 'rgba(153, 102, 255, 0.1)',
+        tension: 0.3,
+        fill: true,
+        hidden: true,
       },
     ],
   };
@@ -238,61 +295,38 @@ export function BroadcastingActivityChart() {
     plugins: {
       legend: {
         position: 'top' as const,
-        labels: {
-          font: { size: 14 },
-        },
+        labels: { font: { size: 14 } },
       },
       tooltip: {
         enabled: true,
         mode: 'index' as const,
         intersect: false,
         callbacks: {
-          label: function (context: any) {
-            return `${context.dataset.label}: ${context.parsed.y ?? context.parsed}`;
-          },
+          label: (context: any) => `${context.dataset.label}: ${context.parsed.y ?? context.parsed}`,
         },
       },
-      title: {
-        display: false,
-      },
+      title: { display: false },
     },
     scales: chartType === 'pie' || chartType === 'doughnut' ? {} : {
-      x: {
-        grid: { color: '#e5e7eb' },
-        ticks: { font: { size: 12 } },
-      },
-      y: {
-        beginAtZero: true,
-        grid: { color: '#e5e7eb' },
-        ticks: { stepSize: 1, font: { size: 12 } },
-      },
+      x: { grid: { color: '#e5e7eb' }, ticks: { font: { size: 12 } } },
+      y: { beginAtZero: true, grid: { color: '#e5e7eb' }, ticks: { stepSize: 1, font: { size: 12 } } },
     },
+    indexAxis: (chartType === 'bar' ? 'y' : 'x') as 'x' | 'y' | undefined,
   };
 
-  let ChartComponent;
-  let dataToShow;
-  if (chartType === 'line') {
-    ChartComponent = Line;
-    dataToShow = dataSource === 'broadcasting' ? broadcastingChartData : activityChartData;
-  } else if (chartType === 'bar') {
-    ChartComponent = Bar;
-    dataToShow = dataSource === 'broadcasting' ? broadcastingChartData : activityChartData;
-  } else if (chartType === 'pie') {
-    ChartComponent = Pie;
-    dataToShow = dataSource === 'broadcasting' ? broadcastingPieData : activityPieData;
-  } else {
-    ChartComponent = Doughnut;
-    dataToShow = dataSource === 'broadcasting' ? broadcastingPieData : activityPieData;
-  }
+  const ChartComponent = chartType === 'line' ? Line : chartType === 'bar' ? Bar : chartType === 'pie' ? Pie : Doughnut;
+  const dataToShow = dataSource === 'analytics'
+      ? (chartType === 'pie' || chartType === 'doughnut' ? analyticsPieData : analyticsChartData)
+      : (chartType === 'pie' || chartType === 'doughnut' ? activityPieData : activityChartData);
 
   return (
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>{dataSource === 'broadcasting' ? 'Broadcasting Activity' : 'Recent Activity'}</CardTitle>
+              <CardTitle>{dataSource === 'analytics' ? 'TVs, Content, and Users Analytics' : 'Recent Activity'}</CardTitle>
               <CardDescription>
-                {dataSource === 'broadcasting' ? 'Track broadcast performance over time' : 'Track recent activities by type'}
+                {dataSource === 'analytics' ? 'Track TVs, content, and users with statuses over time' : 'Track recent activities by type'}
               </CardDescription>
             </div>
             <div className="flex space-x-2">
@@ -323,7 +357,7 @@ export function BroadcastingActivityChart() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="broadcasting">Broadcasting Data</SelectItem>
+                  <SelectItem value="analytics">Analytics Data</SelectItem>
                   <SelectItem value="activity">Recent Activity</SelectItem>
                 </SelectContent>
               </Select>
