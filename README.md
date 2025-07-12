@@ -1,76 +1,68 @@
-Digital Screen Sharing  Management System
-Overview
-This project is a full-stack digital Screen Sharing management system that enables organizations to manage TV displays, content, and broadcasting operations through a modern web dashboard. It features user authentication, role-based access control, and real-time management of digital signage content across multiple TV displays.
-Features
-User Authentication & Roles: Secure login, registration, email verification, and role-based access (editor, manager, admin).
-TV Management: Register, monitor, and manage TV devices by MAC address, with real-time status updates (online, offline, broadcasting, maintenance).
-Content Management: Upload and schedule content (images/videos), assign to TVs, manage content lifecycle (draft, active, scheduled, archived).
-Broadcasting: Start/stop broadcasts, link content to TVs, track broadcast status in real time.
-User Management: Admin interface for managing users, roles, and statuses.
-Dashboard: Real-time statistics and activity feed for TVs, content, broadcasts, and users.
-Notifications: In-app notifications for system events and activities.
-Tech Stack
-Frontend
-Framework: React 18 + TypeScript
-Routing: Wouter
-State Management: TanStack Query (React Query)
-UI: Shadcn/ui (Radix UI), Tailwind CSS
-Forms: React Hook Form + Zod
-Build Tool: Vite
-Backend
-Runtime: Node.js + Express.js (TypeScript)
-API: RESTful, JSON responses
-Authentication: Password-based, bcrypt hashing, JWT-like sessions
-Database: MongoDB (Mongoose ORM)
-Session Management: Express sessions with PostgreSQL store
-WebSockets: Real-time updates via Socket.IO
-Database
-MongoDB: Main data store for users, TVs, content, broadcasts, notifications
-PostgreSQL: Session storage (via connect-pg-simple)
-Project Structure
-Apply to ci-cd.yml
-Getting Started
-Prerequisites
-Node.js (v18+)
-npm
-MongoDB & PostgreSQL instances (local or cloud)
-Installation
-Clone the repository:
-Apply to ci-cd.yml
-Run
-Install dependencies:
-Apply to ci-cd.yml
-Run
-Configure environment variables:
-Create .env files in the root, client/, and server/ as needed for DB connections, secrets, etc.
-Run the app in development:
-Apply to ci-cd.yml
-Run
-This starts both frontend and backend with hot reloading.
-Build for production:
-Apply to ci-cd.yml
-Run
-Usage
-Access the dashboard at http://localhost:3000
-Register/login as a user
-Manage TVs, content, users, and broadcasts from the dashboard
-Deployment
-The project is ready for deployment on platforms like Replit, Vercel, or your own server.
-See .github/workflows/ci-cd.yml for CI/CD pipeline example.
-Production build outputs to dist/public (frontend) and dist/index.js (backend).
-Contributing
-Fork the repo
-Create your feature branch (git checkout -b feature/YourFeature)
-Commit your changes (git commit -am 'Add some feature')
-Push to the branch (git push origin feature/YourFeature)
-Open a pull request
-License
-MIT
-Acknowledgements
-React
-Express
-MongoDB
-Radix UI
-Tailwind CSS
-Socket.IO
-Vite
+# 📺✨ Digital Screen Sharing Management System
+
+> **Full-stack digital screen sharing  & broadcast platform**  
+> Manage TVs, content & real-time broadcasts via a sleek web dashboard.
+
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Build](https://img.shields.io/github/actions/workflow/status/yourusername/yourrepo/ci-cd.yml?branch=main)
+![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
+
+---
+
+## 🚀 Overview
+
+A modern platform that helps organizations **manage TV displays, upload & schedule content,** and handle **broadcasting operations** – all in real-time from a beautiful web dashboard.
+
+✅ User authentication & roles  
+✅ Register/manage TVs by MAC address  
+✅ Upload & schedule images/videos  
+✅ Real-time broadcasting control  
+✅ Admin panel for users & content  
+✅ In-app notifications & activity feed  
+
+---
+
+## 🛠️ Features
+
+- **🔒 User Authentication & Roles**  
+  Secure login, registration, email verification & role-based access (editor, manager, admin)
+
+- **📺 TV Management**  
+  Register, monitor, & control TVs by MAC address with real-time status (online, offline, maintenance)
+
+- **🎞️ Content Management**  
+  Upload, schedule & manage lifecycle: draft → active → scheduled → archived
+
+- **📡 Broadcasting**  
+  Start/stop broadcasts, assign content to TVs, monitor live status
+
+- **👥 User Management**  
+  Admin interface to manage users, roles, and activity
+
+- **📊 Dashboard**  
+  Real-time statistics and system activity feed
+
+- **🔔 Notifications**  
+  In-app alerts for system events and activities
+
+---
+
+## 🧩 Tech Stack
+
+| Layer     | Tech                                                             |
+| --------- | ---------------------------------------------------------------- |
+| Frontend  | React 18 + TypeScript, Vite, TanStack Query, Shadcn/ui, Tailwind, React Hook Form + Zod |
+| Backend   | Node.js + Express (TypeScript), REST API, bcrypt, JWT, Socket.IO |
+| Database  | MongoDB (main data store), PostgreSQL (session storage)          |
+| CI/CD     | GitHub Actions, see [`ci-cd.yml`](.github/workflows/ci-cd.yml)   |
+
+---
+
+## 📂 Project Structure
+
+```plaintext
+client/     → React frontend (dashboard UI)
+server/     → Express backend (REST API + WebSockets)
+.github/    → Workflows, CI/CD configs
+dist/       → Production build outputs
+.env        → Environment configs
