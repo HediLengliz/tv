@@ -80,7 +80,7 @@ bash
 Copy
 Edit
 # Clone the repo
-git clone https://github.com/yourusername/yourrepo.git
+git clone https://github.com/hedilengliz/tv.git
 cd yourrepo
 
 # Install dependencies
@@ -129,9 +129,7 @@ All contributions are welcome! 🎉
 
 ## 📜 License
 This project is licensed under the MIT License.
-<img width="1783" height="787" alt="fafa" src="https://github.com/user-attachments/assets/b6fd7895-4d91-4334-ad3f-56a16f2b95f2" />
-<img width="1893" height="805" alt="dfaezgf" src="https://github.com/user-attachments/assets/45c3a644-d704-4ac0-9a01-7043671e3068" />
-<img width="1849" height="804" alt="fezfze" src="https://github.com/user-attachments/assets/c9769f36-dc09-4dec-9bda-d8ed3cb7c527" />
+
 
 ## ❤️ Acknowledgements
 React
@@ -141,7 +139,6 @@ Express
 MongoDB
 
 Socket.IO
-<img width="1913" height="854" alt="image" src="https://github.com/user-attachments/assets/f1b94f4e-099a-4a7c-af3b-a9012f450001" />
 
 Radix UI
 
@@ -149,6 +146,17 @@ Tailwind CSS
 
 Vite
 
+## Project Showcase 
+
+<img width="1889" height="806" alt="aaaa" src="https://github.com/user-attachments/assets/312d525f-521a-44a7-9996-3a64e26ba32c" />
+<img width="1893" height="805" alt="dfaezgf" src="https://github.com/user-attachments/assets/31731336-c9e9-4526-911f-aeaad92fa491" />
+<img width="1849" height="804" alt="fezfze" src="https://github.com/user-attachments/assets/e6e39097-631b-4976-8350-ae2d654d041c" />
+<img width="1783" height="787" alt="fafa" src="https://github.com/user-attachments/assets/1eced5f0-aa9e-4c02-a5e1-04cb5b3a5569" />
+<img width="1858" height="878" alt="dash" src="https://github.com/user-attachments/assets/bb19d9ed-d8dd-4773-8bab-8c998d822530" />
+<img width="1906" height="798" alt="meca" src="https://github.com/user-attachments/assets/04921818-1077-4d9d-9eda-0ef5fb7fa9cf" />
+<img width="1835" height="815" alt="aaaave" src="https://github.com/user-attachments/assets/df7e0cb8-03f8-4839-82cf-59527de7cf77" />
+
+https://github.com/user-attachments/assets/32573d0b-fc56-46ab-bb34-8bc69e19a4c3
 
 
 
