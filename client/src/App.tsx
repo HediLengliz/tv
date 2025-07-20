@@ -122,10 +122,10 @@ function Router() {
             <Route path="/verify-email">
                 <VerifyEmail />
             </Route>
-            <Route path="/broadcast/:tvId">
+            <Route path="/broadcast/:name">
                 <ContentBroadcast />
             </Route>
-            <Route path="/display/:tvId">
+            <Route path="/display/:name">
                 <ContentDisplay />
             </Route>
             <Route path="/settings">
@@ -173,9 +173,9 @@ function App() {
         // Initialize Socket.IO with configuration from macConfig.ts
         socketRef.current = io(window.location.origin, {
             ...socketConfig,
-            path: "/socket.io", // Explicitly set Socket.IO path to match server
-            reconnection: true, // Enable reconnection
-            reconnectionAttempts: 10, // Increase attempts
+            path: "/socket.io",
+            reconnection: true,
+            reconnectionAttempts: 10,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
         });
@@ -183,33 +183,37 @@ function App() {
         const socket = socketRef.current;
 
         socket.on("connect", () => {
-            console.log("WebSocket connected:", socket.id);
+            console.log("Connected to Socket.IO server");
         });
-
-        socket.on("disconnect", (reason: any) => {
-            console.log("WebSocket disconnected:", reason);
+        socket.on("connect_error", (error: Error) => {
+            console.error("Socket.IO connection error:", error.message);
         });
-
-        socket.on("reconnect", (attempt: any) => {
-            console.log("WebSocket reconnected, attempt:", attempt);
+        socket.on("broadcast", (data: unknown) => {
+            console.log("Broadcast received:", data);
         });
+        return () => {
+            socket.disconnect();
+        }
+    }, []);
+    useEffect(() => {
+        const socket = socketRef.current;
 
-        socket.on("activity", (newActivity: { message: string; }) => {
+        socket.on("activity", (newActivity: { message?: string; }) => {
             let variant: "default" | "success" | "destructive" = "default";
             let style: React.CSSProperties | undefined = undefined;
-            const msg = newActivity.message.toLowerCase();
+            const msg = newActivity.message ? newActivity.message.toLowerCase() : "";
 
             if (msg.includes("created")) {
                 variant = "success";
             } else if (msg.includes("updated")) {
                 variant = "default";
-                style = { backgroundColor: "#facc15", color: "#78350f" }; // yellow bg, dark text
+                style = { backgroundColor: "#facc15", color: "#78350f" };
             } else if (msg.includes("deleted")) {
                 variant = "destructive";
             }
             toast({
                 title: "Activity",
-                description: newActivity.message,
+                description: newActivity.message || "No message",
                 variant,
                 duration: 5000,
             });

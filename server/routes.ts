@@ -2,7 +2,7 @@ import express, { Express, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
 import { insertUserSchema, insertTvSchema, insertContentSchema, loginSchema } from "@shared/schema";
-import {any, z} from "zod";
+import {any, undefined, z} from "zod";
 import path from "path";
 import { Server as HttpServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
@@ -247,10 +247,10 @@ export async function registerRoutes(app: Express, io: SocketIOServer): Promise<
     }
   });
 
-  app.get("/api/tvs/:id", async (req, res) => {
+  app.get("/api/tvs/:name", async (req, res) => {
     try {
-      const id = req.params.id;
-      const tv = await storage.getTV(id);
+      const name = req.params.name;
+      const tv = await storage.getTVByName(name);
       if (!tv) {
         return res.status(404).json({ message: "TV not found" });
       }
@@ -365,18 +365,52 @@ export async function registerRoutes(app: Express, io: SocketIOServer): Promise<
   });
 
   // Broadcasting routes
-  app.post("/api/broadcast", async (req, res) => {
+  app.post("/api/broadcast/:name", async (req, res) => {
     try {
-      const { contentId, tvIds } = req.body;
-      if (!contentId || !tvIds || !Array.isArray(contentId) || !Array.isArray(tvIds)) {
-        return res.status(400).json({ message: 'contentId and tvIds must be non-empty arrays' });
+      let { contentId, name, status = "active" } = req.body;
+
+      if (!contentId || !Array.isArray(name) || name.length === 0) {
+        return res.status(400).json({ message: "contentId must be string/array and name must be non-empty array" });
       }
-      await storage.createBroadcast(contentId, tvIds);
-      res.status(200).json({ message: 'Broadcast started successfully' });
+
+      if (!Array.isArray(contentId)) contentId = [contentId];
+
+      // Find real TVs by name
+      const tvs = await Promise.all(
+          name.map(async (tvName: string) => {
+            const tv = await storage.getTVByName(tvName);
+            if (!tv) throw new Error(`TV not found: ${tvName}`);
+            return tv;
+          })
+      );
+
+      // Create broadcasts
+      const broadcasts = await Promise.all(
+          tvs.flatMap(tv =>
+              contentId.map((cid: any) =>
+                  storage.createBroadcast({
+                    contentId: cid,
+                    tvId: tv.id,
+                    status,
+                    name: tv.name,
+                    startedAt: new Date(),
+                    createdById: req.body.createdById || "system" // Default to system if not provided
+                  })
+              )
+          )
+      );
+
+      res.status(200).json({ message: "Broadcast started successfully", broadcasts });
     } catch (error) {
-      console.error('Broadcasting error:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      console.error("Broadcasting error:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
+  });
+
+  app.get("/api/tvs/:name", async (req, res) => {
+    const tv = await storage.getTVByName(req.params.name);
+    if (!tv) return res.status(404).json({ message: "TV not found" });
+    res.json(tv);
   });
 
   app.post("/api/broadcast/stop", async (req, res) => {
@@ -412,9 +446,9 @@ export async function registerRoutes(app: Express, io: SocketIOServer): Promise<
     }
   });
 
-  app.get("/api/broadcasts/:tvId", async (req, res) => {
+  app.get("/api/broadcasts/:name", async (req, res) => {
     try {
-      const broadcasts = await BroadcastModel.find({ tvId: req.params.tvId });
+      const broadcasts = await BroadcastModel.find({ name: req.params.name });
       res.status(200).json(broadcasts); // Ensure this returns an array
     } catch (error) {
       console.error('Error fetching broadcasts:', error);

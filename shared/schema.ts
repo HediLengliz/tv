@@ -51,6 +51,7 @@ export interface Broadcast {
   contentId: string;
   tvId: string;
   status: string;
+  name: string;
   startedAt: Date;
   stoppedAt?: Date | null;
 }

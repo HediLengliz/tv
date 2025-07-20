@@ -5,6 +5,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { Server as SocketIOServer } from "socket.io";
 import { createServer } from "http";
+import multer from "multer";
 
 // Fix for __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -18,7 +19,31 @@ const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: { origin: "*" } // Adjust this as needed
 });
+const upload = multer({
+  dest: path.join(__dirname, 'uploads/'), // or any folder you want
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only video files are allowed!'));
+    }
+  }
+});
 
+app.post('/api/upload/video', upload.single('video'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+  // You can save file info to DB here if needed
+  res.json({
+    message: 'Video uploaded successfully',
+    fileUrl: `/uploads/${req.file.filename}`,
+    originalName: req.file.originalname
+  });
+});
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

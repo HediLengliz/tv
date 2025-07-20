@@ -27,6 +27,8 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
   const queryClient = useQueryClient();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoUrl, setVideoUrl] = useState(content?.videoUrl || "");
 
   const form = useForm<InsertContent>({
     resolver: zodResolver(insertContentSchema),
@@ -34,6 +36,7 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
       title: "",
       description: "",
       imageUrl: "", // always a string
+      videoUrl: "",
       status: "draft",
       selectedTvs: [],
       createdById: user?.id || "",
@@ -49,6 +52,7 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
           title: content.title || "",
           description: content.description || "",
           imageUrl: content.imageUrl ?? "", // always a string
+          videoUrl: content.videoUrl || "",
           status: content.status || "draft",
           selectedTvs: content.selectedTvs || [],
           createdById: content.createdById || user?.id || "",
@@ -60,6 +64,7 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
           title: "",
           description: "",
           imageUrl: "",
+          videoUrl: "",
           status: "draft",
           selectedTvs: [],
           createdById: user?.id || "",
@@ -74,8 +79,7 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
   useEffect(() => {
     const subscription = form.watch((value, { name }) => {
       if (name === "imageUrl") {
-        setImagePreview(value.imageUrl ? value.imageUrl : null);
-      }
+        setImagePreview(value.imageUrl ? value.imageUrl : null);}
     });
     return () => subscription.unsubscribe();
   }, [form]);
@@ -109,6 +113,21 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
     },
   });
 
+  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setVideoFile(file);
+      const formData = new FormData();
+      formData.append("video", file); // Use "video" as the field name
+      const res = await fetch("/api/upload/video", {
+        method: "POST",
+        body: formData,
+        credentials: "include", // Add this if your backend requires authentication
+      });
+      const data = await res.json();
+      setVideoUrl(data.url); // Assume backend returns { url: "..." }
+    }
+  };
   const updateMutation = useMutation({
     mutationFn: (data: InsertContent) => apiRequest("PUT", `/api/content/${content.id}`, data),
     onSuccess: () => {
@@ -233,6 +252,7 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
                               onChange={(e) => {
                                 field.onChange(e);
                                 setImagePreview(e.target.value || null);
+
                               }}
                               className="mb-2"
                             />
@@ -269,6 +289,61 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
                       </FormItem>
                   )}
               />
+              <FormField
+                  control={form.control}
+                  name="videoUrl"
+                  render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Content Video</FormLabel>
+                        <FormControl>
+                          <>
+                            <Input
+                                placeholder="Enter video URL"
+                                {...field}
+                                value={field.value ?? ""}
+                                onChange={(e) => field.onChange(e.target.value)}
+                                className="mb-2"
+                            />
+                            <input
+                                type="file"
+                                accept="video/*"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const formData = new FormData();
+                                  formData.append("video", file); // field name must be 'video'
+                                  try {
+                                    const res = await fetch("/api/upload/video", {
+                                      method: "POST",
+                                      body: formData,
+                                      credentials: "include",
+                                    });
+                                    const data = await res.json();
+                                    if (data.url) {
+                                      form.setValue("videoUrl", data.url);
+                                      toast({
+                                        title: "Video uploaded",
+                                        description: "Video uploaded successfully.",
+                                      });
+                                    } else {
+                                      throw new Error(data.message || "Upload failed");
+                                    }
+                                  } catch (err: any) {
+                                    toast({
+                                      title: "Upload error",
+                                      description: err.message || "Failed to upload video",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                                className="mb-2"
+                            />
+                          </>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                  )}
+              />
                 <FormField
                     control={form.control}
                     name="duration"
@@ -289,6 +364,7 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
                         </FormItem>
                     )}
                 />
+
 
               <FormField
                   control={form.control}

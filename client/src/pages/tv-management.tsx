@@ -59,8 +59,8 @@ export default function TvManagement() {
 
   const [, setLocation] = useLocation();
 
-  const handleBroadcast = (tvId: string) => {
-    setLocation(`/broadcast/${tvId}`);
+  const handleBroadcast = (tvName: string) => {
+    setLocation(`/broadcast/${tvName}`);
   };
 
   const deleteMutation = useMutation({
@@ -250,7 +250,7 @@ export default function TvManagement() {
                           <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleBroadcast(tv.id)}
+                              onClick={() => handleBroadcast(tv.name)}
                               className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200"
                           >
                             <Play className="h-4 w-4 mr-1" /> Broadcast

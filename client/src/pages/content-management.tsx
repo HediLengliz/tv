@@ -59,8 +59,8 @@ export default function ContentManagement() {
   });
 
   const broadcastMutation = useMutation({
-    mutationFn: ({ contentId, tvIds }: { contentId: string; tvIds: string[] }) =>
-        apiRequest("POST", "/api/broadcast", { contentId, tvIds }),
+    mutationFn: ({ contentId, name }: { contentId: string; name: string[] }) =>
+        apiRequest("POST", "/api/broadcast", { contentId, name }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/content"] });
       toast({
@@ -98,7 +98,7 @@ export default function ContentManagement() {
 
     broadcastMutation.mutate({
       contentId: content.id!,
-      tvIds: content.selectedTvs
+      name: content.selectedTvs
     });
   };
 

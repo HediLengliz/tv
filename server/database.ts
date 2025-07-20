@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema({
 
 // TV Schema
 const tvSchema = new mongoose.Schema({
-  name: { type: String, required: true },
+  name: { type: String, required: true, unique: true },
   description: { type: String },
   macAddress: { type: String, required: true, unique: true },
   status: { type: String, enum: ['online', 'offline', 'broadcasting', 'maintenance'], default: 'offline' },

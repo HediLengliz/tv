@@ -1,5 +1,3 @@
-// content-broadcast.tsx
-import { useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -13,21 +11,24 @@ import { apiRequest } from "@/lib/queryClient";
 import { Play, ArrowLeft, Info } from "lucide-react";
 
 export default function ContentBroadcast() {
-    const { tvId } = useParams();
+    const { name } = useParams();
     const [, setLocation] = useLocation();
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    // Fetch TV details
+    // Fetch TV details by tv name
     const { data: tv, isLoading: isTvLoading } = useQuery({
-        queryKey: [`/api/tvs/${tvId}`],
+        queryKey: ["tv", name],
         queryFn: async () => {
-            const response = await fetch(`/api/tvs/${tvId}`, { credentials: "include" });
-            return response.json();
+            const res = await fetch(`/api/tvs/${name}`, { credentials: "include" });
+            if (!res.ok) throw new Error("TV not found");
+            return res.json();
         },
+        retry: false,
     });
 
-    // Fetch all content that has this TV in its selectedTvs array
+
+    // Fetch all content
     const { data: allContent = [], isLoading: isContentLoading } = useQuery({
         queryKey: ["/api/content"],
         queryFn: async () => {
@@ -38,20 +39,20 @@ export default function ContentBroadcast() {
 
     // Filter content that has this TV selected
     const availableContent = allContent.filter((content: any) =>
-        content.selectedTvs && content.selectedTvs.includes(tvId as string)
+        content.selectedTvs && tv && content.selectedTvs.includes(tv.id)
     );
 
     // Start broadcasting mutation
     const broadcastMutation = useMutation({
-        mutationFn: ({ contentId, tvIds }: { contentId: string[]; tvIds: string[] }) =>
-            apiRequest("POST", "/api/broadcast", { contentId, tvIds }),
+        mutationFn: ({ contentId }: { contentId: string[] }) =>
+            apiRequest("POST", `/api/broadcast/${tv.name}`, { contentId, name: [tv.name] }),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/tvs"] });
+            queryClient.invalidateQueries({queryKey: ["/api/tvs"]}).then(r => r);
             toast({
                 title: "Success",
                 description: "Broadcasting started successfully",
             });
-            setTimeout(() => setLocation(`/display/${tvId}`), 1000); // Ensure tvId is valid
+            setTimeout(() => setLocation(`/display/${tv.name}`), 1000);
         },
         onError: (error) => {
             toast({
@@ -69,18 +70,16 @@ export default function ContentBroadcast() {
                 description: "No content available to broadcast",
                 variant: "destructive",
             });
-            setTimeout(() => setLocation(`/display/${tvId}`), 1000);
+            setTimeout(() => setLocation(`/display/${tv.name}`), 1000);
             return;
         }
 
-        // Broadcast all available content IDs
         broadcastMutation.mutate({
             contentId: availableContent.map((c: any) => c.id),
-            tvIds: [tvId as string]
         });
     };
 
-    if (isTvLoading) {
+    if (isTvLoading || !tv) {
         return (
             <div className="p-8 max-w-5xl mx-auto">
                 <Skeleton className="h-12 w-64 mb-6" />
@@ -100,7 +99,7 @@ export default function ContentBroadcast() {
                 <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">
-                            Broadcast to {tv?.name || "TV"}
+                            Broadcast to {tv.name || "TV"}
                         </h1>
                         <p className="text-muted-foreground">
                             All available content will be broadcast to this TV
@@ -164,7 +163,7 @@ export default function ContentBroadcast() {
                                     <CardFooter className="p-4 pt-0 flex items-center justify-between">
                                         <Badge>{content.status}</Badge>
                                         <p className="text-sm text-muted-foreground">
-                                            Created by {content.createdBy}
+                                            Created by {content.username}
                                         </p>
                                     </CardFooter>
                                 </Card>

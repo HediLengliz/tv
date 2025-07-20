@@ -233,6 +233,10 @@ export class MongoStorage {
     const tv = await TVModel.findById(id);
     return tv ? this.transformTV(tv) : null;
   }
+  async getTVByName(name: string): Promise<TV | null> {
+    const tv = await TVModel.findOne({ name });
+    return tv ? this.transformTV(tv) : null;
+  }
 
   async getAllTVs(): Promise<TV[]> {
     const tvs = await TVModel.find();
@@ -291,13 +295,17 @@ export class MongoStorage {
   }
 
   async updateContent(id: string, updateData: Partial<InsertContent>): Promise<Content | null> {
-    let update = { ...updateData };
+    const update: any = { ...updateData };
     if (updateData.selectedTvs) {
       update.selectedTvs = updateData.selectedTvs.map(tvId =>
-          new mongoose.Types.ObjectId(tvId).toString()
+        new mongoose.Types.ObjectId(tvId)
       );
     }
-    const content = await ContentModel.findByIdAndUpdate(id, update, { new: true });
+    const content = await ContentModel.findByIdAndUpdate(
+      id,
+      { $set: update },
+      { new: true }
+    );
     return content ? this.transformContent(content) : null;
   }
 
@@ -331,8 +339,21 @@ export class MongoStorage {
     return broadcasts.map(broadcast => this.transformBroadcast(broadcast));
   }
 
-  async createBroadcast(insertBroadcast: InsertBroadcast): Promise<Broadcast> {
-    const broadcast = await BroadcastModel.create(insertBroadcast);
+  async createBroadcast(insertBroadcast: {
+    contentId: any;
+    tvId: string | undefined;
+    status: string;
+    name: string;
+    startedAt: Date;
+    createdById: string
+  }): Promise<Broadcast> {
+    // Ensure contentId and tvId are ObjectIds
+    const broadcastData = {
+      ...insertBroadcast,
+      contentId: new mongoose.Types.ObjectId(insertBroadcast.contentId),
+      tvId: new mongoose.Types.ObjectId(insertBroadcast.tvId),
+    };
+    const broadcast = await BroadcastModel.create(broadcastData);
     const today = new Date().toISOString().split('T')[0];
     await this.updateBroadcastingActivity(today, { broadcasts: 1 });
     return this.transformBroadcast(broadcast);
@@ -442,12 +463,11 @@ export class MongoStorage {
   }
 
   async updateBroadcastingActivity(date: string, data: Partial<BroadcastingActivity>): Promise<void> {
-    const existingActivity = await BroadcastingActivityModel.findOne({ date });
-    if (existingActivity) {
-      await BroadcastingActivityModel.updateOne({ date }, { $inc: data });
-    } else {
-      await BroadcastingActivityModel.create({ date, ...data });
-    }
+    await BroadcastingActivityModel.updateOne(
+        { date },
+        { $inc: data, $setOnInsert: { createdAt: new Date() } },
+        { upsert: true }
+    );
   }
 
   async getStats(): Promise<{
@@ -536,12 +556,13 @@ export class MongoStorage {
 
   private transformBroadcast(broadcast: any): Broadcast {
     return {
+      name: "",
       id: broadcast._id.toString(),
       contentId: broadcast.contentId.toString(),
       tvId: broadcast.tvId.toString(),
       status: broadcast.status,
       startedAt: broadcast.startedAt,
-      stoppedAt: broadcast.stoppedAt,
+      stoppedAt: broadcast.stoppedAt
     };
   }
 }

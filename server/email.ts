@@ -34,4 +34,5 @@ export function getVerificationEmailTemplate(user: any, verificationToken: strin
       </div>
     `
     };
+
 }
