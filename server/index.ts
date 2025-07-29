@@ -17,33 +17,79 @@ app.use(express.urlencoded({ extended: false }));
 app.use("/api", express.static(path.join(__dirname, "public")));
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
-  cors: { origin: "*" } // Adjust this as needed
+  cors: { origin: "*" }
 });
+
+// Multer for video uploads (.mp4 only)
 const upload = multer({
-  dest: path.join(__dirname, 'uploads/'), // or any folder you want
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+  dest: path.join(__dirname, 'uploads/'),
+  limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('video/')) {
+    const isMp4 = file.mimetype === 'video/mp4' && file.originalname.toLowerCase().endsWith('.mp4');
+    if (isMp4) {
       cb(null, true);
     } else {
-      cb(new Error('Only video files are allowed!'));
+      cb(new Error('Only .mp4 video files are allowed!'));
     }
   }
 });
 
+// Multer for document uploads (PDF/Word only, preserves extension)
+const docStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads')),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
+    cb(null, uniqueName);
+  }
+});
+const docUpload = multer({
+  storage: docStorage,
+  limits: { fileSize: 100 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    const extAllowed = ['.pdf', '.doc', '.docx'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(file.mimetype) && extAllowed.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF and Word (.doc, .docx) files are allowed!'));
+    }
+  }
+});
+
+// Serve uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Video upload endpoint
 app.post('/api/upload/video', upload.single('video'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded' });
   }
-  // You can save file info to DB here if needed
   res.json({
     message: 'Video uploaded successfully',
-    fileUrl: `/uploads/${req.file.filename}`,
+    url: `/uploads/${req.file.filename}`,
     originalName: req.file.originalname
   });
 });
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Document upload endpoint
+app.post('/api/upload/doc', docUpload.single('doc'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+  res.json({
+    message: 'Document uploaded successfully',
+    url: `/uploads/${req.file.filename}`,
+    originalName: req.file.originalname
+  });
+});
+
+// Logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -62,11 +108,9 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "…";
       }
-
       log(logLine);
     }
   });
@@ -74,6 +118,7 @@ app.use((req, res, next) => {
   next();
 });
 
+// Socket.io connection
 io.on("connection", (socket) => {
   const mac = socket.handshake.auth?.macAddress;
   console.log("Connection attempt with auth:", socket.handshake.auth);
@@ -87,40 +132,31 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => console.log(`Client disconnected: ${mac}, SID: ${socket.id}`));
 });
 
-// Serve uploads directory
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
 (async () => {
   const server = await registerRoutes(app, io);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
-
     res.status(status).json({ message });
     throw err;
   });
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
+
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-    const port = 5000;
-    httpServer.listen(
-        {
-          port: 5000,
-          host: "localhost",
-          reusePort: true,
-        },
-        () => {
-          log(`serving on port ${port}`);
-        }
-    );
+  const port = 5000;
+  httpServer.listen(
+      {
+        port: 5000,
+        host: "localhost",
+        reusePort: true,
+      },
+      () => {
+        log(`serving on port ${port}`);
+      }
+  );
 })();

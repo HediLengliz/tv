@@ -37,14 +37,12 @@ export default function ContentDisplay() {
         )
         : [];
 
-    // Debug logs
     useEffect(() => {
         console.log("tv.id", tv?.id);
         console.log("allContent", allContent);
         console.log("availableContent", availableContent);
     }, [tv, allContent, availableContent]);
 
-    // Extra debug logs for availableContent items
     useEffect(() => {
         if (availableContent.length > 0) {
             availableContent.forEach((item: any, idx: any) => {
@@ -53,7 +51,6 @@ export default function ContentDisplay() {
         }
     }, [availableContent]);
 
-    // Carousel autoplay logic
     const [current, setCurrent] = useState(0);
     const carouselApiRef = useRef<any>(null);
     useEffect(() => {
@@ -62,18 +59,82 @@ export default function ContentDisplay() {
         const timer = setTimeout(() => {
             setCurrent((prev) => (prev + 1) % availableContent.length);
         }, duration * 1000);
-        // Move carousel to current
         if (carouselApiRef.current) {
             carouselApiRef.current.scrollTo(current);
         }
         return () => clearTimeout(timer);
     }, [current, availableContent]);
 
-    // Helper to get absolute media URL
     const getMediaUrl = (url: string) => {
         if (!url) return '';
         if (url.startsWith('http')) return url;
         return `${window.location.origin}${url}`;
+    };
+
+    // Helper to render document files
+    const renderDocument = (docUrl: string) => {
+        if (!docUrl) return <div>No document URL provided</div>;
+        const fileUrl = docUrl.startsWith('http') ? docUrl : `${window.location.origin}${docUrl}`;
+        const ext = docUrl.toLowerCase().split('.').pop();
+        const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+
+        if (ext === 'pdf') {
+            return (
+                <iframe
+                    src={fileUrl}
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100vw',
+                        height: '100vh',
+                        border: 'none',
+                        background: 'white',
+                        objectFit: 'cover'
+                    }}
+                    title="PDF Document"
+                />
+            );
+        } else if (ext === 'doc' || ext === 'docx') {
+            if (isLocal) {
+                // Local: direct download
+                return (
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                       className="flex flex-col items-center justify-center w-full h-full">
+                        <span role="img" aria-label="Word" className="text-3xl mb-1">📝</span>
+                        <span className="text-xs truncate max-w-[80px]">{docUrl.split('/').pop()}</span>
+                        <span className="text-[10px] mt-1">Download DOCX</span>
+                    </a>
+                );
+            } else {
+                // Production: Google Docs Viewer embedded and styled to fit cover
+                const googleViewer = `https://docs.google.com/gview?url=${encodeURIComponent(fileUrl)}&embedded=true`;
+                return (
+                    <iframe
+                        src={googleViewer}
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            minHeight: '60vh',
+                            border: 'none',
+                            background: 'white',
+                            objectFit: 'cover'
+                        }}
+                        title="Word Document"
+                    />
+                );
+            }
+        } else {
+            return (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100">
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                       className="flex flex-col items-center text-blue-700 hover:underline text-2xl font-semibold p-8 rounded-lg border-2 border-blue-200 bg-white shadow-md">
+                        <span role="img" aria-label="Document" className="text-6xl mb-2">📁</span>
+                        <span className="text-lg truncate max-w-[320px]">{docUrl.split('/').pop()}</span>
+                        <span className="text-base mt-2">Click to open or download</span>
+                    </a>
+                </div>
+            );
+        }
     };
 
     if (isTvLoading || !tv) {
@@ -90,7 +151,6 @@ export default function ContentDisplay() {
         );
     }
 
-    // Remove AnimatedBackground and use a solid white background
     return (
         <div className="min-h-screen bg-white">
             {availableContent.length > 0 && (
@@ -103,7 +163,17 @@ export default function ContentDisplay() {
                         <CarouselContent className="h-full">
                             {availableContent.map((content: any, idx: number) => (
                                 <CarouselItem key={content.id} className="h-full w-full flex items-center justify-center relative">
-                                    {content.imageUrl ? (
+                                    {content.videoUrl ? (
+                                        <video
+                                            src={getMediaUrl(content.videoUrl)}
+                                            autoPlay
+                                            loop
+                                            muted
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                            style={{ objectFit: "cover", width: '100vw', height: '100vh', background: 'black' }}
+                                            onError={e => { e.currentTarget.poster = 'https://placehold.co/1920x1080?text=No+Video'; }}
+                                        />
+                                    ) : content.imageUrl ? (
                                         <img
                                             src={getMediaUrl(content.imageUrl)}
                                             alt={content.title}
@@ -111,16 +181,8 @@ export default function ContentDisplay() {
                                             style={{ objectFit: "cover" }}
                                             onError={e => { e.currentTarget.src = 'https://placehold.co/1920x1080?text=No+Image'; }}
                                         />
-                                    ) : content.videoUrl ? (
-                                        <video
-                                            src={getMediaUrl(content.videoUrl)}
-                                            autoPlay
-                                            loop
-                                            muted
-                                            className="object-cover w-full h-full"
-                                            style={{ objectFit: "cover" }}
-                                            onError={e => { e.currentTarget.poster = 'https://placehold.co/1920x1080?text=No+Video'; }}
-                                        />
+                                    ) : content.docUrl ? (
+                                        renderDocument(content.docUrl)
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center bg-yellow-300 text-4xl font-bold">
                                             NO IMAGE/VIDEO
@@ -132,7 +194,6 @@ export default function ContentDisplay() {
                     </Carousel>
                 </div>
             )}
-            {/* Hide the rest of the page when carousel is active */}
             {availableContent.length === 0 && (
                 <div className="max-w-5xl mx-auto p-8">
                     <div className="mb-6 flex justify-between items-center">

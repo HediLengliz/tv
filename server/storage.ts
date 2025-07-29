@@ -551,6 +551,7 @@ export class MongoStorage {
       createdById: content.createdById.toString(),
       videoUrl: content.videoUrl,
       duration: content.duration,
+      docUrl: content.docUrl,
     };
   }
 

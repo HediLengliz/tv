@@ -51,6 +51,7 @@ const contentSchema = new mongoose.Schema({
   description: { type: String },
   imageUrl: { type: String },
   videoUrl: { type: String }, // <-- removed required: true
+  docUrl: { type: String }, // <-- for document uploads
   status: { type: String, enum: ['draft', 'active', 'scheduled', 'archived'], default: 'draft' },
   selectedTvs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'TV' }],
   createdAt: { type: Date, default: Date.now },

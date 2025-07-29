@@ -10,6 +10,50 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Play, ArrowLeft, Info } from "lucide-react";
 
+// Helper to get absolute media/document URL
+const getMediaUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${window.location.origin}${url}`;
+};
+
+// Helper to render document files
+const renderDocument = (docUrl: string) => {
+    if (!docUrl) return <div>No document URL provided</div>;
+    const fileUrl = getMediaUrl(docUrl);
+    const ext = docUrl.toLowerCase().split('.').pop();
+
+    if (ext === 'pdf') {
+        return (
+            <iframe
+                src={fileUrl}
+                title="PDF Preview"
+                className="w-full h-full"
+                style={{ minHeight: '120px', border: 'none', background: 'white' }}
+            />
+        );
+    } else if (ext === 'doc' || ext === 'docx') {
+        const googleViewer = `https://docs.google.com/gview?url=${fileUrl}&embedded=true`;
+        return (
+            <iframe
+                src={googleViewer}
+                title="Word Document"
+                className="w-full h-full"
+                style={{ minHeight: '120px', border: 'none', background: 'white' }}
+            />
+        );
+    } else {
+        return (
+            <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+               className="flex flex-col items-center text-blue-700 hover:underline text-lg font-semibold p-4 rounded-lg border-2 border-blue-200 bg-white shadow-md">
+                <span role="img" aria-label="Document" className="text-5xl mb-2">📁</span>
+                <span className="text-base truncate max-w-[180px]">{docUrl.split('/').pop()}</span>
+                <span className="text-xs mt-1">Click to open or download</span>
+            </a>
+        );
+    }
+};
+
 export default function ContentBroadcast() {
     const { name } = useParams();
     const [, setLocation] = useLocation();
@@ -26,7 +70,6 @@ export default function ContentBroadcast() {
         },
         retry: false,
     });
-
 
     // Fetch all content
     const { data: allContent = [], isLoading: isContentLoading } = useQuery({
@@ -47,7 +90,7 @@ export default function ContentBroadcast() {
         mutationFn: ({ contentId }: { contentId: string[] }) =>
             apiRequest("POST", `/api/broadcast/${tv.name}`, { contentId, name: [tv.name] }),
         onSuccess: () => {
-            queryClient.invalidateQueries({queryKey: ["/api/tvs"]}).then(r => r);
+            queryClient.invalidateQueries({queryKey: ["/api/tvs"]});
             toast({
                 title: "Success",
                 description: "Broadcasting started successfully",
@@ -143,10 +186,23 @@ export default function ContentBroadcast() {
                                         </CardDescription>
                                     </CardHeader>
                                     <CardContent className="p-4 pt-0">
-                                        {content.imageUrl ? (
+                                        {content.videoUrl ? (
+                                            <div className="aspect-video rounded-md overflow-hidden bg-muted">
+                                                <video
+                                                    src={getMediaUrl(content.videoUrl)}
+                                                    className="w-full h-full object-cover"
+                                                    style={{ objectFit: 'cover', width: '100%', height: '100%', background: 'black' }}
+                                                    controls
+                                                    preload="metadata"
+                                                    onError={e => { (e.target as HTMLVideoElement).poster = 'https://placehold.co/600x400?text=No+Video'; }}
+                                                >
+                                                    Your browser does not support the video tag.
+                                                </video>
+                                            </div>
+                                        ) : content.imageUrl ? (
                                             <div className="aspect-video rounded-md overflow-hidden bg-muted">
                                                 <img
-                                                    src={content.imageUrl}
+                                                    src={getMediaUrl(content.imageUrl)}
                                                     alt={content.title}
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
@@ -154,9 +210,13 @@ export default function ContentBroadcast() {
                                                     }}
                                                 />
                                             </div>
+                                        ) : content.docUrl ? (
+                                            <div className="aspect-video rounded-md overflow-hidden bg-muted flex flex-col items-center justify-center p-2">
+                                                {renderDocument(content.docUrl)}
+                                            </div>
                                         ) : (
                                             <div className="aspect-video rounded-md bg-muted flex items-center justify-center">
-                                                <p className="text-muted-foreground">No image</p>
+                                                <p className="text-muted-foreground">No image/video</p>
                                             </div>
                                         )}
                                     </CardContent>

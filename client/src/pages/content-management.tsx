@@ -194,12 +194,67 @@ export default function ContentManagement() {
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center overflow-hidden">
-                            {item.imageUrl ? (
+                            {item.videoUrl ? (
+                                <video
+                                    src={item.videoUrl}
+                                    className="h-full w-full object-cover"
+                                    style={{ objectFit: 'cover', width: '100%', height: '100%', background: 'black' }}
+                                    controls={false}
+                                    muted
+                                    preload="metadata"
+                                    onError={e => { (e.target as HTMLVideoElement).poster = 'https://placehold.co/96x96?text=No+Video'; }}
+                                />
+                            ) : item.imageUrl ? (
                                 <img
                                     src={item.imageUrl}
                                     alt={item.title}
                                     className="h-full w-full object-cover"
                                 />
+                            )  : item.docUrl ? (
+                                (() => {
+                                  const url = item.docUrl.startsWith('http') ? item.docUrl : `${window.location.origin}${item.docUrl}`;
+                                  const ext = item.docUrl.split('.').pop()?.toLowerCase();
+                                  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+                                  if (ext === 'pdf') {
+                                    return (
+                                        <a href={url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center w-full h-full">
+                                          <span role="img" aria-label="PDF" className="text-3xl mb-1">📄</span>
+                                          <span className="text-xs truncate max-w-[80px]">{item.docUrl.split('/').pop()}</span>
+                                          <span className="text-[10px] mt-1">PDF Preview</span>
+                                        </a>
+                                    );
+                                  } else if (ext === 'doc' || ext === 'docx') {
+                                    if (isLocal) {
+                                      // Local: direct download
+                                      return (
+                                          <a href={url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center w-full h-full">
+                                            <span role="img" aria-label="Word" className="text-3xl mb-1">📝</span>
+                                            <span className="text-xs truncate max-w-[80px]">{item.docUrl.split('/').pop()}</span>
+                                            <span className="text-[10px] mt-1">Download DOCX</span>
+                                          </a>
+                                      );
+                                    } else {
+                                      // Production: Google Docs Viewer
+                                      const googleViewer = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
+                                      return (
+                                          <iframe
+                                              src={googleViewer}
+                                              title="Word Document"
+                                              className="w-full h-full"
+                                              style={{ minHeight: '120px', border: 'none', background: 'white' }}
+                                          />
+                                      );
+                                    }
+                                  } else {
+                                    return (
+                                        <a href={url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center w-full h-full">
+                                          <span role="img" aria-label="Document" className="text-3xl mb-1">📁</span>
+                                          <span className="text-xs truncate max-w-[80px]">{item.docUrl.split('/').pop()}</span>
+                                          <span className="text-[10px] mt-1">Download</span>
+                                        </a>
+                                    );
+                                  }
+                                })()
                             ) : (
                                 <Image className="h-6 w-6 text-muted-foreground" />
                             )}

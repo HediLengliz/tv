@@ -306,10 +306,18 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
                             />
                             <input
                                 type="file"
-                                accept="video/*"
+                                accept="video/mp4"
                                 onChange={async (e) => {
                                   const file = e.target.files?.[0];
                                   if (!file) return;
+                                  if (file.type !== 'video/mp4' && !file.name.toLowerCase().endsWith('.mp4')) {
+                                    toast({
+                                      title: "Invalid file type",
+                                      description: "Only .mp4 video files are allowed.",
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
                                   const formData = new FormData();
                                   formData.append("video", file); // field name must be 'video'
                                   try {
@@ -340,6 +348,19 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
                             />
                           </>
                         </FormControl>
+                        {/* Video preview */}
+                        {form.watch("videoUrl") && (
+                          <div className="mt-2 border-2 border-dashed border-muted rounded-lg p-6 text-center">
+                            <video
+                              src={form.watch("videoUrl")}
+                              controls
+                              className="mx-auto max-h-40 object-contain"
+                              style={{ maxWidth: '100%' }}
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+                        )}
                         <FormMessage />
                       </FormItem>
                   )}
@@ -418,6 +439,82 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
                             <SelectItem value="archived">Archived</SelectItem>
                           </SelectContent>
                         </Select>
+                        <FormMessage />
+                      </FormItem>
+                  )}
+              />
+
+              <FormField
+                  control={form.control}
+                  name="docUrl"
+                  render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Attach Document (PDF, CSV, Word, Excel, PowerPoint)</FormLabel>
+                        <FormControl>
+                          <>
+                            <Input
+                              placeholder="Enter document URL"
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={e => field.onChange(e.target.value)}
+                              className="mb-2"
+                            />
+                            <input
+                              type="file"
+                              accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const formData = new FormData();
+                                formData.append("doc", file);
+                                try {
+                                  const res = await fetch("/api/upload/doc", {
+                                    method: "POST",
+                                    body: formData,
+                                    credentials: "include",
+                                  });
+                                  const data = await res.json();
+                                  if (data.url) {
+                                    form.setValue("docUrl", data.url);
+                                    toast({
+                                      title: "Document uploaded",
+                                      description: data.originalName,
+                                    });
+                                  } else {
+                                    throw new Error(data.message || "Upload failed");
+                                  }
+                                } catch (err: any) {
+                                  toast({
+                                    title: "Upload error",
+                                    description: err.message || "Failed to upload document",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                              className="mb-2"
+                            />
+                          </>
+                        </FormControl>
+                        {/* Preview */}
+                        {form.watch("docUrl") && (
+                          <div className="mt-2 border-2 border-dashed border-muted rounded-lg p-6 text-center">
+                            {form.watch("docUrl").endsWith('.pdf') ? (
+                              <iframe
+                                src={form.watch("docUrl")}
+                                title="PDF Preview"
+                                className="mx-auto"
+                                style={{ width: '100%', height: '300px', border: 'none' }}
+                              />
+                            ) : (
+                              <a href={form.watch("docUrl")}
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="text-blue-600 underline">
+                                {form.watch("docUrl").split('/').pop()}
+                              </a>
+                            )}
+                          </div>
+                        )}
                         <FormMessage />
                       </FormItem>
                   )}

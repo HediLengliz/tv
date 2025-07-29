@@ -43,6 +43,7 @@ export interface Content {
   createdById: string;
   videoUrl?: string; // <-- made optional
   duration?: number;
+  docUrl?: string; // <-- for document uploads
 }
 
 export interface Broadcast {
@@ -104,6 +105,7 @@ export const insertContentSchema = z.object({
   createdById: z.string().min(1, "Creator ID is required"),
   duration: z.number().min(1, "Duration must be at least 1 second").default(15),
   videoUrl: z.string().optional(), // <-- add this line to make videoUrl optional in Zod schema
+  docUrl: z.string().optional(), // <-- for document uploads
 });
 
 export const insertBroadcastSchema = z.object({
