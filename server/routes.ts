@@ -317,6 +317,10 @@ export async function registerRoutes(app: Express, io: SocketIOServer): Promise<
       const today = new Date().toISOString().split('T')[0];
       await storage.updateBroadcastingActivity(today, { content: 1 });
       await logActivity(io, "success", "Content created successfully");
+      
+      // Emit real-time update to all connected clients
+      io.emit("content:created", content);
+      
       res.status(201).json(content);
     } catch (error) {
       handleError(res, error);
@@ -344,6 +348,10 @@ export async function registerRoutes(app: Express, io: SocketIOServer): Promise<
         return res.status(404).json({ message: "Content not found" });
       }
       await logActivity(io, "success", "Content updated successfully");
+      
+      // Emit real-time update to all connected clients
+      io.emit("content:updated", content);
+      
       res.json(content);
     } catch (error) {
       handleError(res, error);
@@ -358,6 +366,10 @@ export async function registerRoutes(app: Express, io: SocketIOServer): Promise<
         return res.status(404).json({ message: "Content not found" });
       }
       await logActivity(io, "success", "Content deleted successfully");
+      
+      // Emit real-time update to all connected clients
+      io.emit("content:deleted", { id });
+      
       res.json({ message: "Content deleted successfully" });
     } catch (error) {
       handleError(res, error);

@@ -1,5 +1,5 @@
 import { useParams, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -7,10 +7,15 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import { useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ContentDisplay() {
     const { name } = useParams();
     const [, setLocation] = useLocation();
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+    const socketRef = useRef<any>(null);
 
     const { data: tv, isLoading: isTvLoading } = useQuery({
         queryKey: ["tv", name],
@@ -53,6 +58,78 @@ export default function ContentDisplay() {
 
     const [current, setCurrent] = useState(0);
     const carouselApiRef = useRef<any>(null);
+    // Socket.IO real-time updates for auto-refresh
+    useEffect(() => {
+        // Initialize Socket.IO connection
+        socketRef.current = io(window.location.origin, {
+            path: "/socket.io",
+            reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+        });
+
+        const socket = socketRef.current;
+
+        // Listen for content updates
+        socket.on("content:created", (newContent: any) => {
+            console.log("New content created:", newContent);
+            // Check if the new content is assigned to this TV
+            if (newContent.selectedTvs && newContent.selectedTvs.includes(tv?.id)) {
+                queryClient.invalidateQueries({ queryKey: ["content"] });
+                queryClient.invalidateQueries({ queryKey: ["tv", name] });
+                toast({
+                    title: "New Content Available",
+                    description: `"${newContent.title}" has been added and is now displaying`,
+                    duration: 3000,
+                });
+            }
+        });
+
+        socket.on("content:updated", (updatedContent: any) => {
+            console.log("Content updated:", updatedContent);
+            // Check if the updated content is assigned to this TV
+            if (updatedContent.selectedTvs && updatedContent.selectedTvs.includes(tv?.id)) {
+                queryClient.invalidateQueries({ queryKey: ["content"] });
+                queryClient.invalidateQueries({ queryKey: ["tv", name] });
+                toast({
+                    title: "Content Updated",
+                    description: `"${updatedContent.title}" has been updated`,
+                    duration: 2000,
+                });
+            }
+        });
+
+        socket.on("content:deleted", (deletedContent: any) => {
+            console.log("Content deleted:", deletedContent);
+            queryClient.invalidateQueries({ queryKey: ["content"] });
+            queryClient.invalidateQueries({ queryKey: ["tv", name] });
+            toast({
+                title: "Content Removed",
+                description: "Content has been removed from the system",
+                duration: 2000,
+            });
+        });
+
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+            }
+        };
+    }, [queryClient, toast, tv?.id, name]);
+
+    // Fallback periodic refresh every 30 seconds as backup
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (tv?.id) {
+                queryClient.invalidateQueries({ queryKey: ["content"] });
+                queryClient.invalidateQueries({ queryKey: ["tv", name] });
+            }
+        }, 30000); // 30 seconds
+
+        return () => clearInterval(interval);
+    }, [queryClient, tv?.id, name]);
+
     useEffect(() => {
         if (!availableContent.length) return;
         const duration = availableContent[current]?.duration || 15;
@@ -81,15 +158,13 @@ export default function ContentDisplay() {
         if (ext === 'pdf') {
             return (
                 <iframe
-                    src={fileUrl}
+                    src={`${fileUrl}#toolbar=0`}
                     style={{
-                        position: 'absolute',
-                        inset: 0,
-                        width: '100vw',
-                        height: '100vh',
                         border: 'none',
                         background: 'white',
-                        objectFit: 'cover'
+                        width: '100%',
+                        height: '100vh', // Take full viewport height
+                        display: 'block'
                     }}
                     title="PDF Document"
                 />
@@ -98,12 +173,14 @@ export default function ContentDisplay() {
             if (isLocal) {
                 // Local: direct download
                 return (
-                    <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                       className="flex flex-col items-center justify-center w-full h-full">
-                        <span role="img" aria-label="Word" className="text-3xl mb-1">📝</span>
-                        <span className="text-xs truncate max-w-[80px]">{docUrl.split('/').pop()}</span>
-                        <span className="text-[10px] mt-1">Download DOCX</span>
-                    </a>
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-white">
+                        <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                           className="flex flex-col items-center justify-center w-full h-full">
+                            <span role="img" aria-label="Word" className="text-6xl mb-4">📝</span>
+                            <span className="text-lg truncate max-w-[320px] text-center">{docUrl.split('/').pop()}</span>
+                            <span className="text-base mt-2">Click to download</span>
+                        </a>
+                    </div>
                 );
             } else {
                 // Production: Google Docs Viewer embedded and styled to fit cover
@@ -111,13 +188,10 @@ export default function ContentDisplay() {
                 return (
                     <iframe
                         src={googleViewer}
+                        className="w-full h-full"
                         style={{
-                            width: '100%',
-                            height: '100%',
-                            minHeight: '60vh',
                             border: 'none',
-                            background: 'white',
-                            objectFit: 'cover'
+                            background: 'white'
                         }}
                         title="Word Document"
                     />
@@ -125,7 +199,7 @@ export default function ContentDisplay() {
             }
         } else {
             return (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100">
+                <div className="w-full h-full flex flex-col items-center justify-center bg-white">
                     <a href={fileUrl} target="_blank" rel="noopener noreferrer"
                        className="flex flex-col items-center text-blue-700 hover:underline text-2xl font-semibold p-8 rounded-lg border-2 border-blue-200 bg-white shadow-md">
                         <span role="img" aria-label="Document" className="text-6xl mb-2">📁</span>
@@ -154,7 +228,7 @@ export default function ContentDisplay() {
     return (
         <div className="min-h-screen bg-white">
             {availableContent.length > 0 && (
-                <div className="fixed inset-0 w-full h-full z-10 flex items-center justify-center bg-white">
+                <div className="w-full h-screen bg-white">
                     <Carousel
                         className="w-full h-full"
                         opts={{ loop: true }}
@@ -162,23 +236,30 @@ export default function ContentDisplay() {
                     >
                         <CarouselContent className="h-full">
                             {availableContent.map((content: any, idx: number) => (
-                                <CarouselItem key={content.id} className="h-full w-full flex items-center justify-center relative">
+                                <CarouselItem key={content.id} className="h-full w-full overflow-auto">
                                     {content.videoUrl ? (
                                         <video
                                             src={getMediaUrl(content.videoUrl)}
                                             autoPlay
                                             loop
                                             muted
-                                            className="absolute inset-0 w-full h-full object-cover"
-                                            style={{ objectFit: "cover", width: '100vw', height: '100vh', background: 'black' }}
+                                            className="w-full h-full object-cover"
+                                            style={{ 
+                                                width: '100%', 
+                                                height: '100%', 
+                                                background: 'black' 
+                                            }}
                                             onError={e => { e.currentTarget.poster = 'https://placehold.co/1920x1080?text=No+Video'; }}
                                         />
                                     ) : content.imageUrl ? (
                                         <img
                                             src={getMediaUrl(content.imageUrl)}
                                             alt={content.title}
-                                            className="object-cover w-full h-full"
-                                            style={{ objectFit: "cover" }}
+                                            className="w-full h-full object-cover"
+                                            style={{ 
+                                                width: '100%', 
+                                                height: '100%'
+                                            }}
                                             onError={e => { e.currentTarget.src = 'https://placehold.co/1920x1080?text=No+Image'; }}
                                         />
                                     ) : content.docUrl ? (

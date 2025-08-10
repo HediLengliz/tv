@@ -38,7 +38,7 @@ export default function Dashboard() {
   const socketRef = useRef<any>(null);
 
   useEffect(() => {
-    socketRef.current = io("http://localhost:5000"); // Use your backend URL
+          socketRef.current = io("http://localhost:5000"); // Use your backend URL
 
     socketRef.current.on("activity", (newActivity: Activity) => {
       setActivity((prev) => [newActivity, ...prev].slice(0, 10)); // Keep last 10

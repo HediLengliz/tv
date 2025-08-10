@@ -152,7 +152,7 @@ io.on("connection", (socket) => {
   httpServer.listen(
       {
         port: 5000,
-        host: "localhost",
+        host: "0.0.0.0",
         reusePort: true,
       },
       () => {

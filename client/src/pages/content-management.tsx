@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { formatDate, getStatusColor } from "@/lib/utils";
 import { Plus, Search, Filter, Play, Eye, Edit, Trash2, Image } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type Content } from "@shared/schema";
+import { io } from "socket.io-client";
 
 interface ContentItem extends Omit<Content, 'selectedTvs'> {
   createdBy?: string;
@@ -25,6 +26,7 @@ export default function ContentManagement() {
   const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const socketRef = useRef<any>(null);
 
   const { data: content = [], isLoading } = useQuery<ContentItem[]>({
     queryKey: ["/api/content", searchQuery, statusFilter],
@@ -101,6 +103,66 @@ export default function ContentManagement() {
       name: content.selectedTvs
     });
   };
+
+  // Socket.IO real-time updates
+  useEffect(() => {
+    // Initialize Socket.IO connection
+    socketRef.current = io(window.location.origin, {
+      path: "/socket.io",
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+
+    const socket = socketRef.current;
+
+    // Listen for content updates
+    socket.on("content:created", (newContent: any) => {
+      console.log("New content created:", newContent);
+      queryClient.invalidateQueries({ queryKey: ["/api/content"] });
+      toast({
+        title: "New Content Available",
+        description: `"${newContent.title}" has been added to the system`,
+        duration: 3000,
+      });
+    });
+
+    socket.on("content:updated", (updatedContent: any) => {
+      console.log("Content updated:", updatedContent);
+      queryClient.invalidateQueries({ queryKey: ["/api/content"] });
+      toast({
+        title: "Content Updated",
+        description: `"${updatedContent.title}" has been updated`,
+        duration: 2000,
+      });
+    });
+
+    socket.on("content:deleted", (deletedContent: any) => {
+      console.log("Content deleted:", deletedContent);
+      queryClient.invalidateQueries({ queryKey: ["/api/content"] });
+      toast({
+        title: "Content Removed",
+        description: "Content has been removed from the system",
+        duration: 2000,
+      });
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, [queryClient, toast]);
+
+  // Fallback periodic refresh every 30 seconds as backup
+  useEffect(() => {
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/content"] });
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [queryClient]);
 
   const closeModal = () => {
     setIsModalOpen(false);

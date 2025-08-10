@@ -84,6 +84,25 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
     return () => subscription.unsubscribe();
   }, [form]);
 
+  // Listen for custom content events for immediate UI updates
+  useEffect(() => {
+    const handleContentCreated = (event: CustomEvent) => {
+      console.log("Content created event received:", event.detail);
+    };
+
+    const handleContentUpdated = (event: CustomEvent) => {
+      console.log("Content updated event received:", event.detail);
+    };
+
+    window.addEventListener('content:created', handleContentCreated as EventListener);
+    window.addEventListener('content:updated', handleContentUpdated as EventListener);
+
+    return () => {
+      window.removeEventListener('content:created', handleContentCreated as EventListener);
+      window.removeEventListener('content:updated', handleContentUpdated as EventListener);
+    };
+  }, []);
+
   // Fetch TVs for selection
   const { data: tvs = [] } = useQuery({
     queryKey: ["/api/tvs"],
@@ -95,7 +114,7 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
 
   const createMutation = useMutation({
     mutationFn: (data: InsertContent) => apiRequest("POST", "/api/content", data),
-    onSuccess: () => {
+    onSuccess: (newContent) => {
       queryClient.invalidateQueries({ queryKey: ["/api/content"] });
       toast({
         title: "Success",
@@ -103,6 +122,9 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
       });
       onOpenChange(false);
       form.reset();
+      
+      // Emit custom event for immediate UI update
+      window.dispatchEvent(new CustomEvent('content:created', { detail: newContent }));
     },
     onError: (error) => {
       toast({
@@ -130,7 +152,7 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
   };
   const updateMutation = useMutation({
     mutationFn: (data: InsertContent) => apiRequest("PUT", `/api/content/${content.id}`, data),
-    onSuccess: () => {
+    onSuccess: (updatedContent) => {
       queryClient.invalidateQueries({ queryKey: ["/api/content"] });
       toast({
         title: "Success",
@@ -138,6 +160,9 @@ export function ContentModal({ open, onOpenChange, content }: ContentModalProps)
       });
       onOpenChange(false);
       form.reset();
+      
+      // Emit custom event for immediate UI update
+      window.dispatchEvent(new CustomEvent('content:updated', { detail: updatedContent }));
     },
     onError: (error) => {
       toast({

@@ -77,6 +77,8 @@ const notificationSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
+
+
 // Broadcasting Activity Schema
 const broadcastingActivitySchema = new mongoose.Schema({
   date: { type: String, required: true, unique: true }, // Format: YYYY-MM-DD

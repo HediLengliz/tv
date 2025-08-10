@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Play, ArrowLeft, Info } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { io } from "socket.io-client";
 
 // Helper to get absolute media/document URL
 const getMediaUrl = (url: string) => {
@@ -59,6 +61,7 @@ export default function ContentBroadcast() {
     const [, setLocation] = useLocation();
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const socketRef = useRef<any>(null);
 
     // Fetch TV details by tv name
     const { data: tv, isLoading: isTvLoading } = useQuery({
@@ -84,6 +87,74 @@ export default function ContentBroadcast() {
     const availableContent = allContent.filter((content: any) =>
         content.selectedTvs && tv && content.selectedTvs.includes(tv.id)
     );
+
+    // Socket.IO real-time updates
+    useEffect(() => {
+        // Initialize Socket.IO connection
+        socketRef.current = io(window.location.origin, {
+            path: "/socket.io",
+            reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+        });
+
+        const socket = socketRef.current;
+
+        // Listen for content updates
+        socket.on("content:created", (newContent: any) => {
+            console.log("New content created:", newContent);
+            // Check if the new content is assigned to this TV
+            if (newContent.selectedTvs && newContent.selectedTvs.includes(tv?.id)) {
+                queryClient.invalidateQueries({ queryKey: ["/api/content"] });
+                toast({
+                    title: "New Content Available",
+                    description: `"${newContent.title}" has been added and is now available for broadcast`,
+                    duration: 5000,
+                });
+            }
+        });
+
+        socket.on("content:updated", (updatedContent: any) => {
+            console.log("Content updated:", updatedContent);
+            // Check if the updated content is assigned to this TV
+            if (updatedContent.selectedTvs && updatedContent.selectedTvs.includes(tv?.id)) {
+                queryClient.invalidateQueries({ queryKey: ["/api/content"] });
+                toast({
+                    title: "Content Updated",
+                    description: `"${updatedContent.title}" has been updated`,
+                    duration: 3000,
+                });
+            }
+        });
+
+        socket.on("content:deleted", (deletedContent: any) => {
+            console.log("Content deleted:", deletedContent);
+            queryClient.invalidateQueries({ queryKey: ["/api/content"] });
+            toast({
+                title: "Content Removed",
+                description: "Content has been removed from the system",
+                duration: 3000,
+            });
+        });
+
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+            }
+        };
+    }, [queryClient, toast, tv?.id]);
+
+    // Fallback periodic refresh every 30 seconds as backup
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (tv?.id) {
+                queryClient.invalidateQueries({ queryKey: ["/api/content"] });
+            }
+        }, 30000); // 30 seconds
+
+        return () => clearInterval(interval);
+    }, [queryClient, tv?.id]);
 
     // Start broadcasting mutation
     const broadcastMutation = useMutation({
@@ -205,6 +276,13 @@ export default function ContentBroadcast() {
                                                     src={getMediaUrl(content.imageUrl)}
                                                     alt={content.title}
                                                     className="w-full h-full object-cover"
+                                                    style={{ 
+                                                        objectFit: 'cover',
+                                                        width: '100%',
+                                                        height: '100%',
+                                                        minWidth: '100%',
+                                                        minHeight: '100%'
+                                                    }}
                                                     onError={(e) => {
                                                         (e.target as HTMLImageElement).src = 'https://placehold.co/600x400?text=No+Image';
                                                     }}
